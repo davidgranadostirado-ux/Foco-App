@@ -15,6 +15,10 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
 <meta name="description" content="Un espacio calmado para organizar tareas y vencer la procrastinación cuando vives con TDAH." />
+
+<!-- Supabase JS SDK (Auth + Database client) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
   :root {
     --bg: #f6f5f1;
@@ -120,10 +124,12 @@
   .btn-primary { background: var(--ink); color: #fff; }
   .btn-primary:hover { background: #000; }
   .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-ghost { background: transparent; color: var(--ink-soft); }
   .btn-ghost:hover { color: var(--ink); background: var(--surface-2); }
   .btn-soft { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
   .btn-soft:hover { background: var(--line); }
+  .btn-soft:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .section-title {
     font-size: 12px; text-transform: uppercase; color: var(--ink-muted);
@@ -420,8 +426,102 @@
   footer button {
     border: 0; background: transparent;
     color: var(--ink-muted); text-decoration: underline; font-size: 12px;
+    padding: 0;
   }
   footer button:hover { color: var(--ink); }
+
+  /* ---------- Auth screen ---------- */
+  #auth-screen {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
+  }
+  .auth-card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 32px 28px;
+    box-shadow: var(--shadow);
+    width: 100%; max-width: 420px;
+  }
+  .auth-brand { text-align: center; margin-bottom: 24px; }
+  .auth-brand h1 { font-size: 32px; font-weight: 500; letter-spacing: -0.6px; margin: 0 0 6px; color: var(--ink); }
+  .auth-brand p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .auth-tabs {
+    display: flex; gap: 4px; padding: 4px;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 999px; margin-bottom: 20px;
+  }
+  .auth-tab {
+    flex: 1; border: 0; background: transparent;
+    padding: 8px 12px; border-radius: 999px;
+    color: var(--ink-soft); font-size: 14px;
+    transition: all .15s;
+  }
+  .auth-tab.active { background: var(--ink); color: white; }
+  .auth-field { margin-bottom: 12px; }
+  .auth-field label {
+    display: block; font-size: 12px; color: var(--ink-soft);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .auth-field input {
+    width: 100%; border: 1px solid var(--line);
+    background: var(--surface-2); border-radius: var(--radius-sm);
+    padding: 12px 14px; outline: none; transition: border .15s;
+    font-size: 15px;
+  }
+  .auth-field input:focus { border-color: var(--accent); }
+  .auth-submit { width: 100%; padding: 12px; margin-top: 4px; font-size: 15px; }
+  .auth-divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 18px 0; color: var(--ink-muted); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  .auth-divider::before, .auth-divider::after {
+    content: ""; flex: 1; height: 1px; background: var(--line);
+  }
+  .auth-magic { width: 100%; padding: 11px; }
+  .auth-msg {
+    margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-sm);
+    font-size: 13px; text-align: center; min-height: 0;
+    display: none;
+  }
+  .auth-msg.show { display: block; }
+  .auth-msg.error { background: var(--danger-soft); color: #8b4a4a; }
+  .auth-msg.success { background: var(--accent-soft); color: #456b49; }
+  .auth-msg.info { background: var(--calm-soft); color: #4d6a82; }
+  .auth-foot {
+    text-align: center; color: var(--ink-muted);
+    font-size: 12px; margin-top: 20px; line-height: 1.6;
+  }
+
+  /* ---------- Sync indicator ---------- */
+  .sync-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; color: var(--ink-muted);
+    background: var(--surface-2); border: 1px solid var(--line);
+    cursor: default;
+  }
+  .sync-pill .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ink-muted);
+  }
+  .sync-pill.synced .dot { background: var(--accent); }
+  .sync-pill.syncing .dot { background: var(--warn); animation: pulse 1.2s infinite; }
+  .sync-pill.offline .dot { background: var(--ink-muted); }
+  .sync-pill.error .dot { background: var(--danger); }
+  @keyframes pulse { 0%,100%{ opacity: 1;} 50%{ opacity: 0.4;} }
+
+  .user-bar {
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap; margin-top: 12px;
+    width: 100%;
+  }
+  .user-email {
+    font-size: 12px; color: var(--ink-soft);
+    overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+    white-space: nowrap;
+  }
 
   @media (max-width: 640px) {
     .app { padding: 20px 14px 100px; }
@@ -432,18 +532,65 @@
     .matrix { grid-template-columns: 1fr; }
     .timer-display { font-size: 64px; }
     nav.tabs button { padding: 6px 12px; font-size: 13px; }
+    .auth-card { padding: 24px 20px; }
   }
 </style>
 </head>
 <body>
 
+<!-- ============ AUTH SCREEN (shown when not logged in) ============ -->
+<div id="auth-screen" style="display:none;">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <h1>Foco</h1>
+      <p>Un espacio calmado para vivir con TDAH.</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="signin" type="button">Entrar</button>
+      <button class="auth-tab" data-mode="signup" type="button">Crear cuenta</button>
+    </div>
+
+    <form id="auth-form" autocomplete="on">
+      <div class="auth-field">
+        <label for="auth-email">Email</label>
+        <input type="email" id="auth-email" autocomplete="email" required placeholder="tu@email.com" />
+      </div>
+      <div class="auth-field" id="auth-password-wrap">
+        <label for="auth-password">Contraseña <span style="color:var(--ink-muted); text-transform:none; letter-spacing:0;">(mínimo 6)</span></label>
+        <input type="password" id="auth-password" autocomplete="current-password" minlength="6" placeholder="••••••" />
+      </div>
+
+      <button type="submit" class="btn btn-primary auth-submit" id="auth-submit">Entrar</button>
+
+      <div class="auth-divider">o</div>
+
+      <button type="button" class="btn btn-soft auth-magic" id="auth-magic">
+        ✉️  Enviarme un enlace mágico al email
+      </button>
+
+      <div class="auth-msg" id="auth-msg"></div>
+    </form>
+
+    <p class="auth-foot">
+      Tus datos solo los ves tú. Foco usa Row Level Security en Supabase para asegurarse.
+    </p>
+  </div>
+</div>
+
+<!-- ============ MAIN APP (shown when logged in) ============ -->
 <button id="zen-exit">Salir del modo zen</button>
 
-<div class="app">
+<div class="app" id="main-app" style="display:none;">
   <header class="top">
     <div class="brand">
       <h1>Foco</h1>
       <p>Un espacio calmado para avanzar, un paso a la vez.</p>
+      <div class="user-bar">
+        <span class="sync-pill" id="sync-pill"><span class="dot"></span><span id="sync-text">…</span></span>
+        <span class="user-email" id="user-email"></span>
+        <button class="btn btn-ghost" id="logout-btn" style="font-size:12px; padding:4px 10px;">Cerrar sesión</button>
+      </div>
     </div>
     <div class="stats">
       <div class="stat"><div class="value" id="stat-streak">0</div><div class="label">Racha 🔥</div></div>
@@ -602,7 +749,7 @@
   </section>
 
   <footer>
-    <p>Tus datos viven solo en este navegador · <button id="export-btn">Exportar</button> · <button id="import-btn">Importar</button> · <button id="reset-btn">Reiniciar todo</button></p>
+    <p>Tus datos están sincronizados en tu cuenta · <button id="export-btn">Exportar JSON</button> · <button id="import-btn">Importar JSON</button></p>
     <input type="file" id="import-file" style="display:none" accept=".json" />
   </footer>
 </div>
@@ -610,6 +757,31 @@
 <div id="toast"></div>
 
 <script>
+/* ============================================================
+   FOCO · TDAH organizer with Supabase auth + sync
+   ============================================================ */
+
+/* ---------------- Supabase config ---------------- */
+const SUPABASE_URL = "https://oiifqedhvjxszpsurhwe.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Kx2gIJ1AOpAhAcefWkKbng_-oL0J3ix";
+
+let supabase = null;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      }
+    });
+  }
+} catch(e) {
+  console.warn("No se pudo inicializar Supabase:", e);
+}
+
+let currentUser = null;
+
 /* ---------------- State ---------------- */
 const STORAGE_KEY = "foco_tdah_state_v1";
 
@@ -624,7 +796,8 @@ const defaultState = {
   pomodoroDate: null,
   achievements: {},
   notifsEnabled: false,
-  journal: {},   // { "YYYY-MM-DD": { mood, wins, hard, tomorrow, savedAt } }
+  journal: {},        // { "YYYY-MM-DD": { mood, wins, hard, tomorrow, savedAt } }
+  deletedTaskIds: [], // queued deletions awaiting cloud sync
 };
 
 let state = loadState();
@@ -637,7 +810,11 @@ function loadState() {
     return Object.assign(structuredClone(defaultState), parsed);
   } catch(e) { return structuredClone(defaultState); }
 }
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  scheduleCloudSync();
+}
 
 function todayStr() {
   const d = new Date();
@@ -660,7 +837,20 @@ function updateStreak() {
   saveState();
 }
 
-function uid() { return Math.random().toString(36).slice(2,10); }
+function uid() {
+  // UUID v4 — required for Supabase tasks.id (uuid column)
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  // Fallback for older browsers
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    const v = c === "x" ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+function isUuid(s) {
+  return typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
 
 /* ---------------- Toast ---------------- */
 function toast(msg) {
@@ -692,7 +882,340 @@ async function requestNotifPermission() {
 
 function notify(title, body) {
   if (!canNotify()) return;
-  try { new Notification(title, { body, icon: "", silent: false }); } catch(e) {}
+  try { new Notification(title, { body, icon: "icon-192.png", silent: false }); } catch(e) {}
+}
+
+/* ---------------- Sync indicator ---------------- */
+function setSyncStatus(status, text) {
+  const pill = document.getElementById("sync-pill");
+  const txt = document.getElementById("sync-text");
+  if (!pill || !txt) return;
+  pill.classList.remove("synced","syncing","offline","error");
+  pill.classList.add(status);
+  const labels = {
+    synced: "En la nube",
+    syncing: "Guardando…",
+    offline: "Sin conexión",
+    error: "Error de sync"
+  };
+  txt.textContent = text || labels[status] || status;
+}
+
+/* ---------------- Cloud sync ---------------- */
+let syncTimeout = null;
+function scheduleCloudSync() {
+  if (!currentUser || !supabase) return;
+  clearTimeout(syncTimeout);
+  setSyncStatus("syncing", "Cambios pendientes…");
+  syncTimeout = setTimeout(pushToCloud, 800);
+}
+
+async function pushToCloud() {
+  if (!currentUser || !supabase) return;
+  setSyncStatus("syncing");
+  try {
+    // 1. Tasks: ensure all have UUIDs (migrate non-uuid IDs)
+    let migrated = false;
+    state.tasks.forEach(t => {
+      if (!isUuid(t.id)) { t.id = uid(); migrated = true; }
+    });
+    if (migrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    if (state.tasks.length > 0) {
+      const taskRows = state.tasks.map(t => ({
+        id: t.id,
+        user_id: currentUser.id,
+        title: t.title,
+        quadrant: t.quadrant || "q2",
+        estimated_min: t.estimatedMin || null,
+        done: !!t.done,
+        done_at: t.doneAt ? new Date(t.doneAt).toISOString() : null,
+        subtasks: t.subtasks || [],
+        created_at: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
+      }));
+      const { error: tErr } = await supabase.from("tasks").upsert(taskRows, { onConflict: "id" });
+      if (tErr) throw tErr;
+    }
+
+    // 2. Process queued deletions
+    if (state.deletedTaskIds && state.deletedTaskIds.length > 0) {
+      const validDeletes = state.deletedTaskIds.filter(isUuid);
+      if (validDeletes.length > 0) {
+        const { error: dErr } = await supabase.from("tasks").delete().in("id", validDeletes);
+        if (dErr) throw dErr;
+      }
+      state.deletedTaskIds = [];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    // 3. Journal entries
+    const journalRows = Object.entries(state.journal)
+      .filter(([d, e]) => e && (e.mood || e.wins || e.hard || e.tomorrow))
+      .map(([date, e]) => ({
+        user_id: currentUser.id,
+        entry_date: date,
+        mood: e.mood || null,
+        wins: e.wins || null,
+        hard: e.hard || null,
+        tomorrow: e.tomorrow || null,
+      }));
+    if (journalRows.length > 0) {
+      const { error: jErr } = await supabase
+        .from("journal_entries")
+        .upsert(journalRows, { onConflict: "user_id,entry_date" });
+      if (jErr) throw jErr;
+    }
+
+    // 4. User stats
+    const { error: sErr } = await supabase.from("user_stats").upsert({
+      user_id: currentUser.id,
+      points: state.points || 0,
+      streak: state.streak || 0,
+      last_active_date: state.lastActiveDate,
+      completed_pomodoros: state.completedPomodoros || 0,
+      achievements: state.achievements || {},
+    }, { onConflict: "user_id" });
+    if (sErr) throw sErr;
+
+    setSyncStatus("synced");
+  } catch (e) {
+    console.warn("Cloud sync error:", e);
+    if (!navigator.onLine) setSyncStatus("offline");
+    else setSyncStatus("error", "Reintento en breve");
+    // Retry after 5s
+    setTimeout(scheduleCloudSync, 5000);
+  }
+}
+
+async function pullFromCloud() {
+  if (!currentUser || !supabase) return false;
+  setSyncStatus("syncing", "Cargando tus datos…");
+  try {
+    const [tasksRes, journalRes, statsRes] = await Promise.all([
+      supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+      supabase.from("journal_entries").select("*"),
+      supabase.from("user_stats").select("*").eq("user_id", currentUser.id).maybeSingle(),
+    ]);
+
+    if (tasksRes.error) throw tasksRes.error;
+    if (journalRes.error) throw journalRes.error;
+    if (statsRes.error) throw statsRes.error;
+
+    state.tasks = (tasksRes.data || []).map(t => ({
+      id: t.id,
+      title: t.title,
+      quadrant: t.quadrant || "q2",
+      estimatedMin: t.estimated_min || 0,
+      done: !!t.done,
+      doneAt: t.done_at ? new Date(t.done_at).getTime() : null,
+      createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
+      subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+      expanded: false,
+    }));
+
+    state.journal = {};
+    (journalRes.data || []).forEach(e => {
+      state.journal[e.entry_date] = {
+        mood: e.mood || "",
+        wins: e.wins || "",
+        hard: e.hard || "",
+        tomorrow: e.tomorrow || "",
+        savedAt: e.created_at ? new Date(e.created_at).getTime() : Date.now(),
+      };
+    });
+
+    if (statsRes.data) {
+      state.points = statsRes.data.points || 0;
+      state.streak = statsRes.data.streak || 0;
+      state.lastActiveDate = statsRes.data.last_active_date;
+      state.completedPomodoros = statsRes.data.completed_pomodoros || 0;
+      state.achievements = statsRes.data.achievements || {};
+    }
+
+    state.deletedTaskIds = [];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    setSyncStatus("synced");
+    return true;
+  } catch (e) {
+    console.warn("Pull error:", e);
+    setSyncStatus("error", "No se pudo cargar");
+    return false;
+  }
+}
+
+window.addEventListener("online", () => {
+  if (currentUser) scheduleCloudSync();
+});
+window.addEventListener("offline", () => setSyncStatus("offline"));
+
+/* ---------------- Auth ---------------- */
+let authMode = "signin"; // "signin" | "signup"
+
+function showAuthScreen() {
+  document.getElementById("auth-screen").style.display = "flex";
+  document.getElementById("main-app").style.display = "none";
+  document.getElementById("auth-email").focus();
+}
+
+function showMainApp() {
+  document.getElementById("auth-screen").style.display = "none";
+  document.getElementById("main-app").style.display = "block";
+  if (currentUser && currentUser.email) {
+    document.getElementById("user-email").textContent = currentUser.email;
+  }
+}
+
+function showAuthMsg(text, type) {
+  const el = document.getElementById("auth-msg");
+  el.textContent = text;
+  el.className = "auth-msg show " + (type || "info");
+}
+function clearAuthMsg() {
+  document.getElementById("auth-msg").className = "auth-msg";
+}
+
+document.querySelectorAll(".auth-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    authMode = tab.dataset.mode;
+    document.querySelectorAll(".auth-tab").forEach(t => t.classList.toggle("active", t === tab));
+    document.getElementById("auth-submit").textContent = authMode === "signin" ? "Entrar" : "Crear cuenta";
+    document.getElementById("auth-password").autocomplete = authMode === "signin" ? "current-password" : "new-password";
+    clearAuthMsg();
+  });
+});
+
+document.getElementById("auth-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!supabase) {
+    showAuthMsg("No hay conexión con el servidor. Revisa tu internet.", "error");
+    return;
+  }
+  const email = document.getElementById("auth-email").value.trim();
+  const password = document.getElementById("auth-password").value;
+  const submitBtn = document.getElementById("auth-submit");
+  if (!email || !password || password.length < 6) {
+    showAuthMsg("Email y contraseña (mínimo 6 caracteres) son obligatorios.", "error");
+    return;
+  }
+  submitBtn.disabled = true;
+  showAuthMsg(authMode === "signin" ? "Entrando…" : "Creando tu cuenta…", "info");
+
+  try {
+    if (authMode === "signup") {
+      // Check if local has data — offer to keep
+      const hasLocalData = (state.tasks.length > 0) || Object.keys(state.journal).length > 0;
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      // session may be null if email confirmation is required
+      if (!data.session) {
+        showAuthMsg("Cuenta creada. Revisa tu email para confirmar y luego inicia sesión.", "success");
+        submitBtn.disabled = false;
+        return;
+      }
+      currentUser = data.user;
+      if (hasLocalData) {
+        const keep = confirm("Tienes datos locales en este navegador (tareas/diario). ¿Quieres conservarlos en tu nueva cuenta?\n\nAceptar = subirlos a tu cuenta.\nCancelar = empezar limpio.");
+        if (keep) {
+          await pushToCloud();
+          toast("Datos locales subidos a tu cuenta");
+        } else {
+          state = structuredClone(defaultState);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+      }
+      onAuthSuccess();
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      currentUser = data.user;
+      // On sign-in, replace local with cloud
+      state = structuredClone(defaultState);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      await pullFromCloud();
+      onAuthSuccess();
+    }
+  } catch (err) {
+    console.warn(err);
+    showAuthMsg(translateAuthError(err.message || String(err)), "error");
+    submitBtn.disabled = false;
+  }
+});
+
+document.getElementById("auth-magic").addEventListener("click", async () => {
+  if (!supabase) {
+    showAuthMsg("Sin conexión con el servidor.", "error");
+    return;
+  }
+  const email = document.getElementById("auth-email").value.trim();
+  if (!email) {
+    showAuthMsg("Pon tu email arriba para recibir el enlace.", "error");
+    document.getElementById("auth-email").focus();
+    return;
+  }
+  const btn = document.getElementById("auth-magic");
+  btn.disabled = true;
+  showAuthMsg("Enviando enlace al email…", "info");
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.href }
+    });
+    if (error) throw error;
+    showAuthMsg("✉️  Listo. Revisa tu email y toca el enlace para entrar. Puedes cerrar esta pestaña mientras tanto.", "success");
+  } catch (err) {
+    showAuthMsg(translateAuthError(err.message || String(err)), "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function translateAuthError(msg) {
+  const m = (msg || "").toLowerCase();
+  if (m.includes("invalid login")) return "Email o contraseña incorrectos.";
+  if (m.includes("user already registered")) return "Este email ya tiene cuenta. Cambia a 'Entrar'.";
+  if (m.includes("email not confirmed")) return "Confirma tu email primero (revisa tu bandeja).";
+  if (m.includes("password should be at least")) return "La contraseña debe tener al menos 6 caracteres.";
+  if (m.includes("rate limit") || m.includes("too many")) return "Demasiados intentos. Espera un momento e inténtalo de nuevo.";
+  if (m.includes("network") || m.includes("failed to fetch")) return "Sin conexión. Revisa tu internet e inténtalo otra vez.";
+  return "Error: " + msg;
+}
+
+async function onAuthSuccess() {
+  showMainApp();
+  // If we just signed in (not signup-with-merge), pull from cloud
+  // pullFromCloud already called above; just render
+  updateStreak();
+  renderAll();
+  checkAchievements();
+  setSyncStatus("synced");
+  toast("Bienvenid@ de vuelta 🌱");
+}
+
+document.getElementById("logout-btn").addEventListener("click", async () => {
+  if (!confirm("¿Cerrar sesión?\n\nTus datos quedan a salvo en tu cuenta. Vuelves a verlos al iniciar sesión otra vez.")) return;
+  if (supabase) await supabase.auth.signOut();
+  currentUser = null;
+  // Clear local state on logout (so next user doesn't see previous user's data)
+  state = structuredClone(defaultState);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  showAuthScreen();
+  // Reset auth form
+  document.getElementById("auth-email").value = "";
+  document.getElementById("auth-password").value = "";
+  clearAuthMsg();
+});
+
+/* Listen for auth state changes (handles magic link return) */
+if (supabase) {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" && session && (!currentUser || currentUser.id !== session.user.id)) {
+      currentUser = session.user;
+      // pull and show app
+      pullFromCloud().then(() => onAuthSuccess());
+    } else if (event === "SIGNED_OUT") {
+      // already handled by logout button; this is a safety net
+    }
+  });
 }
 
 /* ---------------- Tabs ---------------- */
@@ -758,6 +1281,11 @@ function toggleTask(id) {
 function deleteTask(id) {
   state.tasks = state.tasks.filter(x => x.id !== id);
   if (state.focusTaskId === id) state.focusTaskId = null;
+  // Track deletion for cloud sync (only if it was a real saved task)
+  if (isUuid(id)) {
+    state.deletedTaskIds = state.deletedTaskIds || [];
+    if (!state.deletedTaskIds.includes(id)) state.deletedTaskIds.push(id);
+  }
   saveState();
   renderTasks();
   renderStats();
@@ -768,7 +1296,8 @@ function toggleExpand(id) {
   const t = state.tasks.find(x => x.id === id);
   if (!t) return;
   t.expanded = !t.expanded;
-  saveState();
+  // expanded is UI state; don't sync — but localStorage is fine
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   renderTasks();
 }
 
@@ -805,7 +1334,8 @@ function toggleSubtask(taskId, subId) {
 
 function setFocusTask(id) {
   state.focusTaskId = state.focusTaskId === id ? null : id;
-  saveState();
+  // focusTaskId is UI state, only save locally
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   renderTasks();
   renderFocusTask();
   if (state.focusTaskId) document.querySelector('.tab-btn[data-tab="focus"]').click();
@@ -1060,7 +1590,6 @@ function renderFocusTask() {
   const est = t.estimatedMin ? ` <span style="opacity:0.7;">· ${t.estimatedMin} min</span>` : "";
   box.innerHTML = 'Enfocándote en: <strong>' + escapeHtml(t.title) + '</strong>' + est + subs;
 
-  // Hook subtask toggles from focus tab
   box.querySelectorAll("[data-focus-sub]").forEach(el => {
     el.addEventListener("click", () => toggleSubtask(t.id, el.dataset.focusSub));
   });
@@ -1086,6 +1615,9 @@ function playBell() {
 function enterZen() {
   document.body.classList.add("zen");
   if (!timer.running) startTimer();
+  state._zenUsed = true;
+  saveState();
+  checkAchievements();
 }
 function exitZen() {
   document.body.classList.remove("zen");
@@ -1101,7 +1633,6 @@ function renderJournal() {
   const today = todayStr();
   const entry = state.journal[today] || {};
 
-  // Summary
   const doneToday = state.tasks.filter(t => t.done && t.doneAt && isSameDay(new Date(t.doneAt), new Date())).length;
   const pomoToday = state.pomodoroDate === today ? state.pomodorosToday : 0;
   const minutesToday = state.tasks
@@ -1114,7 +1645,6 @@ function renderJournal() {
     <div class="journal-stat"><div class="v">${minutesToday}m</div><div class="l">Tiempo estimado</div></div>
   `;
 
-  // Restore today's entry
   document.getElementById("j-wins").value = entry.wins || "";
   document.getElementById("j-hard").value = entry.hard || "";
   document.getElementById("j-tomorrow").value = entry.tomorrow || "";
@@ -1122,7 +1652,6 @@ function renderJournal() {
     b.classList.toggle("active", b.dataset.mood === entry.mood);
   });
 
-  // Past entries
   const past = document.getElementById("past-journal");
   past.innerHTML = "";
   const dates = Object.keys(state.journal).filter(d => d !== today).sort().reverse().slice(0, 14);
@@ -1239,12 +1768,6 @@ document.getElementById("timer-toggle").addEventListener("click", () => {
 
 document.getElementById("timer-reset").addEventListener("click", resetTimer);
 
-document.getElementById("zen-enter").addEventListener("click", () => {
-  state._zenUsed = true;
-  saveState();
-  checkAchievements();
-});
-
 /* Notifications toggle */
 const notifToggle = document.getElementById("notif-toggle");
 notifToggle.checked = state.notifsEnabled && canNotify();
@@ -1286,21 +1809,14 @@ document.getElementById("import-file").addEventListener("change", (e) => {
     try {
       const data = JSON.parse(ev.target.result);
       state = Object.assign(structuredClone(defaultState), data);
+      // Migrate any non-uuid task IDs
+      state.tasks.forEach(t => { if (!isUuid(t.id)) t.id = uid(); });
       saveState();
       renderAll();
       toast("Datos importados");
     } catch(err) { toast("Archivo no válido"); }
   };
   reader.readAsText(f);
-});
-
-document.getElementById("reset-btn").addEventListener("click", () => {
-  if (confirm("¿Borrar todos tus datos? Esta acción no se puede deshacer.")) {
-    state = structuredClone(defaultState);
-    saveState();
-    renderAll();
-    toast("Todo limpio. Nuevo comienzo.");
-  }
 });
 
 /* ---------------- Init ---------------- */
@@ -1314,10 +1830,6 @@ function renderAll() {
   renderJournal();
   setMode("work", 25);
 }
-
-updateStreak();
-renderAll();
-checkAchievements();
 
 // Keyboard: space toggles timer on focus tab (or zen)
 document.addEventListener("keydown", (e) => {
@@ -1338,13 +1850,13 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// Install prompt handling
+// Install prompt
 let deferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  // Show a subtle install hint after a delay
   setTimeout(() => {
+    if (document.getElementById("auth-screen").style.display !== "none") return; // don't show on auth screen
     const hint = document.createElement("div");
     hint.id = "install-hint";
     hint.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:12px 18px;border-radius:999px;font-size:13px;box-shadow:var(--shadow);z-index:1100;display:flex;gap:10px;align-items:center;";
@@ -1365,6 +1877,42 @@ window.addEventListener("beforeinstallprompt", (e) => {
     document.getElementById("install-no").onclick = () => hint.remove();
   }, 8000);
 });
+
+/* ---------------- Bootstrap ---------------- */
+async function bootstrap() {
+  if (!supabase) {
+    // No Supabase available — fall back to local-only mode
+    showMainApp();
+    document.getElementById("logout-btn").style.display = "none";
+    document.getElementById("user-email").textContent = "modo local";
+    setSyncStatus("offline", "Sin servidor");
+    updateStreak();
+    renderAll();
+    checkAchievements();
+    return;
+  }
+
+  // Check existing session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session && session.user) {
+    currentUser = session.user;
+    showMainApp();
+    setSyncStatus("syncing", "Cargando…");
+    const ok = await pullFromCloud();
+    if (!ok) {
+      // Couldn't pull (offline?). Use local cache.
+      setSyncStatus("offline");
+    }
+    updateStreak();
+    renderAll();
+    checkAchievements();
+  } else {
+    showAuthScreen();
+    setSyncStatus("offline", "Sin sesión");
+  }
+}
+
+bootstrap();
 </script>
 
 </body>
