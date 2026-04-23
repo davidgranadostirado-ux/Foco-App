@@ -596,9 +596,9 @@
       <p>Un espacio calmado para avanzar, un paso a la vez.</p>
     </div>
     <div class="stats">
-      <div class="stat"><div class="value" id="stat-streak">0</div><div class="label">Racha 🔥</div></div>
-      <div class="stat"><div class="value" id="stat-points">0</div><div class="label">Puntos</div></div>
-      <div class="stat"><div class="value" id="stat-done">0</div><div class="label">Hoy ✓</div></div>
+      <div class="stat"><div class="value" id="stat-streak">0</div><div class="label">Días verdes 🌱</div></div>
+      <div class="stat"><div class="value" id="stat-points">0</div><div class="label">Semillas 🌰</div></div>
+      <div class="stat"><div class="value" id="stat-done">0</div><div class="label">Hoy 🌿</div></div>
     </div>
   </header>
 
@@ -1271,7 +1271,7 @@ function toggleTask(id) {
   if (t.done) {
     addPoints(10);
     t.subtasks.forEach(s => { if (!s.done) s.done = true; });
-    toast("¡Una cosa menos! +10 puntos");
+    toast("🌳 Una planta crecida · +10 semillas");
   } else {
     addPoints(-10);
   }
@@ -1321,12 +1321,12 @@ function toggleSubtask(taskId, subId) {
   const s = t.subtasks.find(x => x.id === subId);
   if (!s) return;
   s.done = !s.done;
-  if (s.done) { addPoints(3); toast("+3 puntos · paso dado"); }
+  if (s.done) { addPoints(3); toast("🌱 Brote · +3 semillas"); }
   if (t.subtasks.length > 0 && t.subtasks.every(x => x.done) && !t.done) {
     t.done = true;
     t.doneAt = Date.now();
     addPoints(10);
-    toast("¡Tarea completa! +10 puntos");
+    toast("🌳 Planta crecida · +10 semillas");
   }
   saveState();
   renderTasks();
@@ -1548,7 +1548,7 @@ function completeSession() {
     state.pomodorosToday++;
     addPoints(25);
     saveState();
-    toast("🌿 Sesión completa. +25 puntos. Respira.");
+    toast("💧 Riego completado · +25 semillas · Respira.");
     notify("Sesión de enfoque completa", "Buen trabajo. Levántate, estírate, hidrátate.");
     renderCycleDots();
     renderStats();
@@ -1695,7 +1695,7 @@ document.getElementById("j-save").addEventListener("click", () => {
   };
   addPoints(15);
   saveState();
-  toast("📓 Entrada guardada · +15 puntos");
+  toast("📓 Entrada guardada · +15 semillas");
   renderJournal();
   renderStats();
   checkAchievements();
@@ -1703,18 +1703,18 @@ document.getElementById("j-save").addEventListener("click", () => {
 
 /* ---------------- Achievements ---------------- */
 const ACHIEVEMENTS = [
-  { id: "first_task", icon: "🌱", name: "Primer paso", desc: "Crea tu primera tarea", cond: () => state.tasks.length >= 1 },
-  { id: "first_done", icon: "✨", name: "Primera victoria", desc: "Completa una tarea", cond: () => state.tasks.some(t => t.done) },
-  { id: "five_done", icon: "🎯", name: "Cinco abajo", desc: "Completa 5 tareas en total", cond: () => state.tasks.filter(t => t.done).length >= 5 },
-  { id: "first_pomo", icon: "🕯️", name: "Primera sesión", desc: "Completa un pomodoro", cond: () => state.completedPomodoros >= 1 },
-  { id: "four_pomo", icon: "🌊", name: "Día de enfoque", desc: "4 pomodoros en un día", cond: () => state.pomodoroDate === todayStr() && state.pomodorosToday >= 4 },
-  { id: "streak3", icon: "🔥", name: "Racha de 3", desc: "3 días activos seguidos", cond: () => state.streak >= 3 },
-  { id: "streak7", icon: "🌟", name: "Una semana", desc: "7 días seguidos", cond: () => state.streak >= 7 },
-  { id: "breakdown", icon: "🧩", name: "Fragmenta y vencerás", desc: "Desglosa una tarea en 3+ pasos", cond: () => state.tasks.some(t => t.subtasks.length >= 3) },
-  { id: "hundred_pts", icon: "💎", name: "Cien puntos", desc: "Acumula 100 puntos", cond: () => state.points >= 100 },
-  { id: "zen_user", icon: "🧘", name: "Mente zen", desc: "Usa el modo zen", cond: () => state._zenUsed },
-  { id: "first_journal", icon: "📓", name: "Escribir cura", desc: "Guarda tu primera entrada de diario", cond: () => Object.keys(state.journal).length >= 1 },
-  { id: "journal_week", icon: "🗓️", name: "Siete días narrados", desc: "7 entradas de diario", cond: () => Object.keys(state.journal).length >= 7 },
+  { id: "first_task", icon: "🌰", name: "Primera semilla", desc: "Plantaste tu primera tarea", cond: () => state.tasks.length >= 1 },
+  { id: "first_done", icon: "🌱", name: "Primer brote", desc: "Una tarea creció hasta completarse", cond: () => state.tasks.some(t => t.done) },
+  { id: "five_done", icon: "🌿", name: "Pequeño huerto", desc: "5 plantas crecidas", cond: () => state.tasks.filter(t => t.done).length >= 5 },
+  { id: "first_pomo", icon: "💧", name: "Primer riego", desc: "Completa una sesión de enfoque", cond: () => state.completedPomodoros >= 1 },
+  { id: "four_pomo", icon: "🌊", name: "Día bien regado", desc: "4 sesiones de enfoque en un día", cond: () => state.pomodoroDate === todayStr() && state.pomodorosToday >= 4 },
+  { id: "streak3", icon: "🌱", name: "Brote constante", desc: "3 días seguidos cuidando tu jardín", cond: () => state.streak >= 3 },
+  { id: "streak7", icon: "🌳", name: "Semana frondosa", desc: "7 días verdes seguidos", cond: () => state.streak >= 7 },
+  { id: "breakdown", icon: "🌾", name: "Raíces profundas", desc: "Divide una tarea en 3+ pasos", cond: () => state.tasks.some(t => t.subtasks.length >= 3) },
+  { id: "hundred_pts", icon: "🌰", name: "Cien semillas", desc: "Plantaste 100 semillas", cond: () => state.points >= 100 },
+  { id: "zen_user", icon: "🧘", name: "Mente serena", desc: "Visitas el modo zen", cond: () => state._zenUsed },
+  { id: "first_journal", icon: "📓", name: "Diario del jardinero", desc: "Primera entrada guardada", cond: () => Object.keys(state.journal).length >= 1 },
+  { id: "journal_week", icon: "📔", name: "Siete páginas narradas", desc: "7 entradas en el diario", cond: () => Object.keys(state.journal).length >= 7 },
 ];
 
 function checkAchievements() {
