@@ -524,12 +524,57 @@
     overflow: hidden; text-overflow: ellipsis; max-width: 240px;
     white-space: nowrap;
   }
-  .notif-bell {
+  .notif-bell, .notif-gear {
     font-size: 16px; padding: 4px 10px;
     line-height: 1; cursor: pointer;
+    position: relative;
   }
-  .notif-bell.active { color: var(--accent); }
+  .notif-bell.muted .bell-icon { filter: grayscale(1); opacity: 0.55; }
   .notif-bell.denied { opacity: 0.5; }
+  .bell-badge {
+    position: absolute;
+    top: -2px; right: -2px;
+    min-width: 18px; height: 18px;
+    background: var(--danger, #d97757);
+    color: white;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 5px;
+    border: 2px solid var(--bg, #fff);
+    line-height: 1;
+  }
+
+  /* Lista de pendientes en la campana */
+  .bell-list {
+    max-height: 360px; overflow-y: auto;
+    margin: 4px -8px 0;
+  }
+  .bell-item {
+    display: flex; align-items: flex-start;
+    gap: 10px;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .bell-item:last-child { border-bottom: 0; }
+  .bell-item-emoji {
+    font-size: 18px; flex-shrink: 0;
+    width: 28px; text-align: center; line-height: 1.2;
+  }
+  .bell-item-body { flex: 1; min-width: 0; }
+  .bell-item-title {
+    font-size: 14px; color: var(--ink);
+    margin: 0 0 2px;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .bell-item-when {
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .bell-item.overdue .bell-item-when { color: var(--danger, #d97757); }
+  .bell-item.today .bell-item-when { color: var(--accent, #4a7c59); font-weight: 500; }
+  .bell-item.soon .bell-item-when { color: var(--warn, #c08b3f); }
 
   /* ---------- Panel de notificaciones ---------- */
   .notif-modal {
@@ -748,18 +793,37 @@
   <div class="user-bar">
     <span class="sync-pill" id="sync-pill"><span class="dot"></span><span id="sync-text">…</span></span>
     <span class="user-spacer"></span>
-    <button class="btn btn-ghost notif-bell" id="notif-bell" title="Recordatorios" aria-label="Recordatorios">🔕</button>
+    <button class="btn btn-ghost notif-bell" id="notif-bell" title="Pendientes" aria-label="Pendientes">
+      <span class="bell-icon">🔔</span>
+      <span class="bell-badge" id="bell-badge" style="display:none;">0</span>
+    </button>
+    <button class="btn btn-ghost notif-gear" id="notif-gear" title="Ajustes de recordatorios" aria-label="Ajustes">⚙️</button>
     <span class="user-email" id="user-email"></span>
     <button class="btn btn-ghost" id="logout-btn" style="font-size:12px; padding:4px 10px;">Cerrar sesión</button>
   </div>
 
-  <!-- Panel de ajustes de notificaciones (oculto por defecto) -->
-  <div id="notif-modal" class="notif-modal" style="display:none;" role="dialog" aria-labelledby="notif-modal-title">
-    <div class="notif-modal-backdrop" id="notif-modal-backdrop"></div>
+  <!-- Modal de pendientes (campana 🔔) -->
+  <div id="bell-modal" class="notif-modal" style="display:none;" role="dialog" aria-labelledby="bell-modal-title">
+    <div class="notif-modal-backdrop" id="bell-modal-backdrop"></div>
     <div class="notif-modal-card">
       <div class="notif-modal-header">
-        <h3 id="notif-modal-title">Recordatorios 🔔</h3>
-        <button class="btn btn-ghost" id="notif-modal-close" style="padding:4px 10px; font-size:12px;">Cerrar</button>
+        <h3 id="bell-modal-title">Pendientes 🔔</h3>
+        <button class="btn btn-ghost" id="bell-modal-close" style="padding:4px 10px; font-size:12px;">Cerrar</button>
+      </div>
+      <p class="notif-modal-hint" id="bell-empty-hint" style="display:none;">
+        Nada pendiente con fecha y hora. Disfruta el momento 🌿
+      </p>
+      <div id="bell-list" class="bell-list"></div>
+    </div>
+  </div>
+
+  <!-- Modal de ajustes (engranaje ⚙️) -->
+  <div id="settings-modal" class="notif-modal" style="display:none;" role="dialog" aria-labelledby="settings-modal-title">
+    <div class="notif-modal-backdrop" id="settings-modal-backdrop"></div>
+    <div class="notif-modal-card">
+      <div class="notif-modal-header">
+        <h3 id="settings-modal-title">Ajustes de recordatorios ⚙️</h3>
+        <button class="btn btn-ghost" id="settings-modal-close" style="padding:4px 10px; font-size:12px;">Cerrar</button>
       </div>
       <p class="notif-modal-hint" id="notif-permission-status">Comprobando permiso del navegador…</p>
       <label class="notif-row">
@@ -2256,6 +2320,7 @@ function renderAll() {
   renderCycleDots();
   renderJournal();
   setMode("work", 25);
+  try { updateNotifBell(); } catch(e) {}
 }
 
 // Keyboard: space toggles timer on focus tab (or zen)
@@ -2297,29 +2362,124 @@ function updateNotifBell() {
   const bell = document.getElementById("notif-bell");
   if (!bell) return;
   const perm = notifPermission();
-  if (perm === "unsupported") {
-    bell.textContent = "🔕";
-    bell.classList.remove("active", "denied");
-    bell.title = "Tu navegador no soporta notificaciones";
-    return;
-  }
+  // Color/estado de la campana
+  bell.classList.remove("denied", "muted");
   if (perm === "denied") {
-    bell.textContent = "🔕";
-    bell.classList.remove("active");
     bell.classList.add("denied");
-    bell.title = "Permiso denegado · ajusta en el navegador";
+    bell.title = "Permiso denegado · ajústalo en el navegador";
+  } else if (!state.notifsEnabled || perm !== "granted") {
+    bell.classList.add("muted");
+    bell.title = "Recordatorios desactivados · abre ⚙️ para activarlos";
+  } else {
+    bell.title = "Pendientes";
+  }
+  // Badge con el número de pendientes (siempre, aunque las notifs estén apagadas)
+  const items = computeBellItems();
+  const badge = document.getElementById("bell-badge");
+  if (badge) {
+    if (items.length > 0) {
+      badge.textContent = items.length > 99 ? "99+" : String(items.length);
+      badge.style.display = "inline-flex";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+}
+
+/* Construye la lista de pendientes que se muestra en la campana */
+function computeBellItems() {
+  const now = Date.now();
+  const items = [];
+  for (const t of state.tasks) {
+    if (t.done) continue;
+    const dueAt = parseDueAt(t);
+    if (!dueAt) continue;
+    items.push({ task: t, dueAt, diff: dueAt - now });
+  }
+  // Orden: vencidas primero (más recientes arriba), luego próximas (más cercanas arriba)
+  items.sort((a, b) => {
+    const aOver = a.diff < 0, bOver = b.diff < 0;
+    if (aOver && !bOver) return -1;
+    if (!aOver && bOver) return 1;
+    if (aOver && bOver) return b.diff - a.diff; // -1h antes que -2h
+    return a.diff - b.diff;
+  });
+  return items;
+}
+
+function describeWhen(diffMs, dueAt) {
+  const min = Math.round(Math.abs(diffMs) / 60000);
+  const dt = new Date(dueAt);
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mm = String(dt.getMinutes()).padStart(2, "0");
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dueDay = new Date(dt); dueDay.setHours(0,0,0,0);
+  const dayDiff = Math.round((dueDay - today) / (24 * 3600 * 1000));
+
+  if (diffMs < 0) {
+    if (min < 60) return `Vencida hace ${min} min`;
+    if (min < 24*60) return `Vencida hace ${Math.round(min/60)} h`;
+    return `Vencida hace ${Math.round(min/(60*24))} d`;
+  }
+  if (min < 60) return `En ${min} min · ${hh}:${mm}`;
+  if (dayDiff === 0) return `Hoy · ${hh}:${mm}`;
+  if (dayDiff === 1) return `Mañana · ${hh}:${mm}`;
+  if (dayDiff < 7) {
+    const dias = ["dom","lun","mar","mié","jue","vie","sáb"];
+    return `${dias[dt.getDay()]} ${dt.getDate()} · ${hh}:${mm}`;
+  }
+  return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")} · ${hh}:${mm}`;
+}
+
+function classForItem(diffMs) {
+  if (diffMs < 0) return "overdue";
+  if (diffMs < 60 * 60 * 1000) return "soon";
+  // Mismo día calendario
+  const dt = new Date(Date.now() + diffMs);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dueDay = new Date(dt); dueDay.setHours(0,0,0,0);
+  if (dueDay.getTime() === today.getTime()) return "today";
+  return "";
+}
+
+function emojiForItem(diffMs) {
+  if (diffMs < 0) return "🍂";
+  if (diffMs < 60 * 60 * 1000) return "⏰";
+  const dt = new Date(Date.now() + diffMs);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dueDay = new Date(dt); dueDay.setHours(0,0,0,0);
+  if (dueDay.getTime() === today.getTime()) return "🌿";
+  if ((dueDay - today) <= 24*3600*1000) return "🌱";
+  return "🌾";
+}
+
+function renderBellList() {
+  const list = document.getElementById("bell-list");
+  const empty = document.getElementById("bell-empty-hint");
+  if (!list) return;
+  const items = computeBellItems();
+  if (items.length === 0) {
+    list.innerHTML = "";
+    if (empty) empty.style.display = "block";
     return;
   }
-  if (state.notifsEnabled && perm === "granted") {
-    bell.textContent = "🔔";
-    bell.classList.add("active");
-    bell.classList.remove("denied");
-    bell.title = "Recordatorios activos";
-  } else {
-    bell.textContent = "🔕";
-    bell.classList.remove("active", "denied");
-    bell.title = "Recordatorios desactivados";
-  }
+  if (empty) empty.style.display = "none";
+  list.innerHTML = items.map((it) => {
+    const cls = classForItem(it.diff);
+    const emoji = emojiForItem(it.diff);
+    const when = describeWhen(it.diff, it.dueAt);
+    const safeTitle = (it.task.title || "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    return `
+      <div class="bell-item ${cls}" data-id="${it.task.id}">
+        <div class="bell-item-emoji">${emoji}</div>
+        <div class="bell-item-body">
+          <div class="bell-item-title">${safeTitle}</div>
+          <div class="bell-item-when">${when}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 async function requestDueNotifPermission() {
@@ -2419,8 +2579,8 @@ function stopNotifEngine() {
 
 /* ---------------- Panel de ajustes de notificaciones ---------------- */
 
-function openNotifModal() {
-  const modal = document.getElementById("notif-modal");
+function openSettingsModal() {
+  const modal = document.getElementById("settings-modal");
   if (!modal) return;
   // Sincroniza controles con el estado
   document.getElementById("notif-toggle-due").checked = !!state.notifsEnabled;
@@ -2429,8 +2589,18 @@ function openNotifModal() {
   refreshNotifPermissionStatus();
   modal.style.display = "flex";
 }
-function closeNotifModal() {
-  const modal = document.getElementById("notif-modal");
+function closeSettingsModal() {
+  const modal = document.getElementById("settings-modal");
+  if (modal) modal.style.display = "none";
+}
+function openBellModal() {
+  const modal = document.getElementById("bell-modal");
+  if (!modal) return;
+  renderBellList();
+  modal.style.display = "flex";
+}
+function closeBellModal() {
+  const modal = document.getElementById("bell-modal");
   if (modal) modal.style.display = "none";
 }
 function refreshNotifPermissionStatus() {
@@ -2458,12 +2628,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function wireNotifControls() {
   const bell = document.getElementById("notif-bell");
-  const modal = document.getElementById("notif-modal");
-  if (!bell || !modal || bell.dataset.wired === "1") return;
+  const gear = document.getElementById("notif-gear");
+  const settingsModal = document.getElementById("settings-modal");
+  const bellModal = document.getElementById("bell-modal");
+  if (!bell || !gear || !settingsModal || !bellModal) return;
+  if (bell.dataset.wired === "1") return;
 
-  bell.addEventListener("click", openNotifModal);
-  document.getElementById("notif-modal-close").addEventListener("click", closeNotifModal);
-  document.getElementById("notif-modal-backdrop").addEventListener("click", closeNotifModal);
+  // Campana → lista de pendientes
+  bell.addEventListener("click", openBellModal);
+  document.getElementById("bell-modal-close").addEventListener("click", closeBellModal);
+  document.getElementById("bell-modal-backdrop").addEventListener("click", closeBellModal);
+
+  // Engranaje → ajustes
+  gear.addEventListener("click", openSettingsModal);
+  document.getElementById("settings-modal-close").addEventListener("click", closeSettingsModal);
+  document.getElementById("settings-modal-backdrop").addEventListener("click", closeSettingsModal);
 
   document.getElementById("notif-toggle-due").addEventListener("change", async (e) => {
     if (e.target.checked) {
@@ -2610,6 +2789,213 @@ sb.auth.getSession();
     }
     updateStreak();
     renderAll();
+    checkAchievements();
+  } else {
+    showAuthScreen();
+    setSyncStatus("offline", "Sin sesión");
+  }
+}
+
+bootstrap();
+</script>
+
+</body>
+</html>
+  renderBellList();
+  modal.style.display = "flex";
+}
+function closeBellModal() {
+  const modal = document.getElementById("bell-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function wireNotifControls() {
+  const bell = document.getElementById("notif-bell");
+  const gear = document.getElementById("notif-gear");
+  const settingsModal = document.getElementById("settings-modal");
+  const bellModal = document.getElementById("bell-modal");
+  if (!bell || !gear || !settingsModal || !bellModal) return;
+  if (bell.dataset.wired === "1") return;
+
+  // Campana → lista de pendientes
+  bell.addEventListener("click", openBellModal);
+  document.getElementById("bell-modal-close").addEventListener("click", closeBellModal);
+  document.getElementById("bell-modal-backdrop").addEventListener("click", closeBellModal);
+
+  // Engranaje → ajustes
+  gear.addEventListener("click", openSettingsModal);
+  document.getElementById("settings-modal-close").addEventListener("click", closeSettingsModal);
+  document.getElementById("settings-modal-backdrop").addEventListener("click", closeSettingsModal);
+
+  document.getElementById("notif-toggle-due").addEventListener("change", async (e) => {
+    if (e.target.checked) {
+      const perm = await requestDueNotifPermission();
+      refreshNotifPermissionStatus();
+      if (perm !== "granted") {
+        e.target.checked = false;
+        state.notifsEnabled = false;
+        saveState(); updateNotifBell();
+        const oldToggle = document.getElementById("notif-toggle");
+        if (oldToggle) oldToggle.checked = false;
+        if (perm === "denied") toast("Permiso denegado · ajústalo en el navegador");
+        return;
+      }
+      state.notifsEnabled = true;
+      saveState();
+      startNotifEngine();
+      updateNotifBell();
+      const oldToggle = document.getElementById("notif-toggle");
+      if (oldToggle) oldToggle.checked = true;
+      toast("Recordatorios activados 🔔");
+    } else {
+      state.notifsEnabled = false;
+      saveState();
+      stopNotifEngine();
+      updateNotifBell();
+      const oldToggle = document.getElementById("notif-toggle");
+      if (oldToggle) oldToggle.checked = false;
+    }
+  });
+
+  document.getElementById("notif-lead").addEventListener("change", (e) => {
+    state.notifsLeadMinutes = parseInt(e.target.value, 10) || 15;
+    saveState();
+    if (state.notifsEnabled) startNotifEngine();
+  });
+
+  document.getElementById("notif-overdue").addEventListener("change", (e) => {
+    state.notifsOverdueOn = e.target.checked;
+    saveState();
+  });
+
+  document.getElementById("notif-test").addEventListener("click", async () => {
+    const perm = await requestDueNotifPermission();
+    refreshNotifPermissionStatus();
+    if (perm !== "granted") {
+      toast("Necesito permiso para mostrarte la prueba");
+      return;
+    }
+    showFocoNotification("🌿 Prueba de Foco", "Si ves esto, los recordatorios funcionan ✨", "foco-test-" + Date.now());
+  });
+
+  bell.dataset.wired = "1";
+}
+
+/* ---------------- PWA ---------------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js")
+      .then((reg) => console.log("SW registrado:", reg.scope))
+      .catch((err) => console.warn("SW no registrado:", err));
+  });
+}
+
+// Install prompt
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  setTimeout(() => {
+    if (document.getElementById("auth-screen").style.display !== "none") return;
+    const hint = document.createElement("div");
+    hint.id = "install-hint";
+    hint.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:12px 18px;border-radius:999px;font-size:13px;box-shadow:var(--shadow);z-index:1100;display:flex;gap:10px;align-items:center;";
+    hint.innerHTML = '<span>📲 Instalar Foco como app</span>'
+      + '<button id="install-yes" style="background:var(--accent);color:white;border:0;padding:6px 12px;border-radius:999px;font-size:12px;cursor:pointer;">Instalar</button>'
+      + '<button id="install-no" style="background:transparent;color:#aaa;border:0;padding:4px 8px;font-size:12px;cursor:pointer;">Ahora no</button>';
+    if (!document.getElementById("install-hint")) document.body.appendChild(hint);
+    document.getElementById("install-yes").onclick = async () => {
+      hint.remove();
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+      }
+    };
+    document.getElementById("install-no").onclick = () => hint.remove();
+  }, 8000);
+});
+
+/* ---------------- Bootstrap ---------------- */
+async function bootstrap() {
+  if (!sb) {
+    // No Supabase available — fall back to local-only mode
+    showMainApp();
+    document.getElementById("logout-btn").style.display = "none";
+    document.getElementById("user-email").textContent = "modo local";
+    setSyncStatus("offline", "Sin servidor");
+    updateStreak();
+    renderAll();
+    checkAchievements();
+    return;
+  }
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user) {
+    currentUser = session.user;
+    showMainApp();
+    setSyncStatus("syncing", "Cargando…");
+    const ok = await pullFromCloud();
+    if (!ok) {
+      setSyncStatus("offline");
+    }
+    updateStreak();
+    renderAll();
+    checkAchievements();
+  } else {
+    showAuthScreen();
+    setSyncStatus("offline", "Sin sesión");
+  }
+}
+
+bootstrap();
+</script>
+
+</body>
+</html>
+dInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+      }
+    };
+    document.getElementById("install-no").onclick = () => hint.remove();
+  }, 8000);
+});
+
+/* ---------------- Bootstrap ---------------- */
+async function bootstrap() {
+  if (!sb) {
+    showMainApp();
+    document.getElementById("logout-btn").style.display = "none";
+    document.getElementById("user-email").textContent = "modo local";
+    setSyncStatus("offline", "Sin servidor");
+    updateStreak();
+    renderAll();
+    checkAchievements();
+    return;
+  }
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user) {
+    currentUser = session.user;
+    showMainApp();
+    setSyncStatus("syncing", "Cargando…");
+    const ok = await pullFromCloud();
+    if (!ok) setSyncStatus("offline");
+    updateStreak();
+    renderAll();
+    checkAchievements();
+  } else {
+    showAuthScreen();
+    setSyncStatus("offline", "Sin sesión");
+  }
+}
+
+bootstrap();
+</script>
+
+</body>
+</html>
+ll();
     checkAchievements();
   } else {
     showAuthScreen();
