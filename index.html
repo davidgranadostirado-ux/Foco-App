@@ -514,12 +514,14 @@
 
   .user-bar {
     display: flex; align-items: center; gap: 10px;
-    flex-wrap: wrap; margin-top: 12px;
+    flex-wrap: wrap;
     width: 100%;
+    margin-bottom: 18px;
   }
+  .user-spacer { flex: 1 1 auto; }
   .user-email {
     font-size: 12px; color: var(--ink-soft);
-    overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+    overflow: hidden; text-overflow: ellipsis; max-width: 240px;
     white-space: nowrap;
   }
 
@@ -582,15 +584,16 @@
 <button id="zen-exit">Salir del modo zen</button>
 
 <div class="app" id="main-app" style="display:none;">
+  <div class="user-bar">
+    <span class="sync-pill" id="sync-pill"><span class="dot"></span><span id="sync-text">…</span></span>
+    <span class="user-spacer"></span>
+    <span class="user-email" id="user-email"></span>
+    <button class="btn btn-ghost" id="logout-btn" style="font-size:12px; padding:4px 10px;">Cerrar sesión</button>
+  </div>
   <header class="top">
     <div class="brand">
       <h1>Foco</h1>
       <p>Un espacio calmado para avanzar, un paso a la vez.</p>
-      <div class="user-bar">
-        <span class="sync-pill" id="sync-pill"><span class="dot"></span><span id="sync-text">…</span></span>
-        <span class="user-email" id="user-email"></span>
-        <button class="btn btn-ghost" id="logout-btn" style="font-size:12px; padding:4px 10px;">Cerrar sesión</button>
-      </div>
     </div>
     <div class="stats">
       <div class="stat"><div class="value" id="stat-streak">0</div><div class="label">Racha 🔥</div></div>
