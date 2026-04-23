@@ -701,14 +701,14 @@
     </div>
     <div class="stats">
       <div class="stat"><div class="value" id="stat-streak">0</div><div class="label">Días verdes 🌱</div></div>
-      <div class="stat"><div class="value" id="stat-points">0</div><div class="label">Semillas 🌰</div></div>
+      <div class="stat"><div class="value" id="stat-points">0</div><div class="label">Semillas 🌾</div></div>
       <div class="stat"><div class="value" id="stat-done">0</div><div class="label">Hoy 🌿</div></div>
     </div>
   </header>
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="today">Hoy</button>
-    <button class="tab-btn" data-tab="calendar">Jardín</button>
+    <button class="tab-btn" data-tab="calendar">Camino</button>
     <button class="tab-btn" data-tab="matrix">Matriz</button>
     <button class="tab-btn" data-tab="focus">Enfoque</button>
     <button class="tab-btn" data-tab="journal">Diario</button>
@@ -1587,7 +1587,7 @@ function dayPlantState(ymd) {
   const done = tasks.filter(t => t.done).length;
   const today = todayStr();
   const hasOverdue = tasks.some(t => !t.done && t.dueDate < today);
-  let plant = "🌰";
+  let plant = "🌱";
   let className = "";
   if (done === total) { plant = "🌳"; className = "all-done"; }
   else if (done > 0) { plant = "🌿"; className = "partial"; }
@@ -2013,15 +2013,15 @@ document.getElementById("j-save").addEventListener("click", () => {
 
 /* ---------------- Achievements ---------------- */
 const ACHIEVEMENTS = [
-  { id: "first_task", icon: "🌰", name: "Primera semilla", desc: "Plantaste tu primera tarea", cond: () => state.tasks.length >= 1 },
+  { id: "first_task", icon: "🌾", name: "Primera semilla", desc: "Plantaste tu primera tarea", cond: () => state.tasks.length >= 1 },
   { id: "first_done", icon: "🌱", name: "Primer brote", desc: "Una tarea creció hasta completarse", cond: () => state.tasks.some(t => t.done) },
   { id: "five_done", icon: "🌿", name: "Pequeño huerto", desc: "5 plantas crecidas", cond: () => state.tasks.filter(t => t.done).length >= 5 },
   { id: "first_pomo", icon: "💧", name: "Primer riego", desc: "Completa una sesión de enfoque", cond: () => state.completedPomodoros >= 1 },
   { id: "four_pomo", icon: "🌊", name: "Día bien regado", desc: "4 sesiones de enfoque en un día", cond: () => state.pomodoroDate === todayStr() && state.pomodorosToday >= 4 },
   { id: "streak3", icon: "🌱", name: "Brote constante", desc: "3 días seguidos cuidando tu jardín", cond: () => state.streak >= 3 },
   { id: "streak7", icon: "🌳", name: "Semana frondosa", desc: "7 días verdes seguidos", cond: () => state.streak >= 7 },
-  { id: "breakdown", icon: "🌾", name: "Raíces profundas", desc: "Divide una tarea en 3+ pasos", cond: () => state.tasks.some(t => t.subtasks.length >= 3) },
-  { id: "hundred_pts", icon: "🌰", name: "Cien semillas", desc: "Plantaste 100 semillas", cond: () => state.points >= 100 },
+  { id: "breakdown", icon: "🍃", name: "Raíces profundas", desc: "Divide una tarea en 3+ pasos", cond: () => state.tasks.some(t => t.subtasks.length >= 3) },
+  { id: "hundred_pts", icon: "🪴", name: "Cien semillas", desc: "Plantaste 100 semillas", cond: () => state.points >= 100 },
   { id: "zen_user", icon: "🧘", name: "Mente serena", desc: "Visitas el modo zen", cond: () => state._zenUsed },
   { id: "first_journal", icon: "📓", name: "Diario del jardinero", desc: "Primera entrada guardada", cond: () => Object.keys(state.journal).length >= 1 },
   { id: "journal_week", icon: "📔", name: "Siete páginas narradas", desc: "7 entradas en el diario", cond: () => Object.keys(state.journal).length >= 7 },
