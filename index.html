@@ -524,6 +524,63 @@
     overflow: hidden; text-overflow: ellipsis; max-width: 240px;
     white-space: nowrap;
   }
+  .notif-bell {
+    font-size: 16px; padding: 4px 10px;
+    line-height: 1; cursor: pointer;
+  }
+  .notif-bell.active { color: var(--accent); }
+  .notif-bell.denied { opacity: 0.5; }
+
+  /* ---------- Panel de notificaciones ---------- */
+  .notif-modal {
+    position: fixed; inset: 0; z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .notif-modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(34, 49, 43, 0.45);
+    backdrop-filter: blur(2px);
+  }
+  .notif-modal-card {
+    position: relative; z-index: 1;
+    background: var(--bg);
+    border-radius: 18px;
+    padding: 22px 22px 18px;
+    max-width: 420px; width: 100%;
+    box-shadow: 0 12px 32px rgba(34,49,43,0.18);
+    border: 1px solid var(--line);
+  }
+  .notif-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .notif-modal-header h3 { margin: 0; font-size: 18px; font-weight: 500; }
+  .notif-modal-hint {
+    color: var(--ink-soft); font-size: 12px;
+    margin: 0 0 16px;
+  }
+  .notif-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .notif-row:last-of-type { border-bottom: 0; }
+  .notif-row select, .notif-row input[type="checkbox"] {
+    font-size: 14px;
+  }
+  .notif-row select {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 8px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  .notif-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    margin-top: 14px;
+  }
 
   @media (max-width: 640px) {
     .app { padding: 20px 14px 100px; }
@@ -691,8 +748,45 @@
   <div class="user-bar">
     <span class="sync-pill" id="sync-pill"><span class="dot"></span><span id="sync-text">…</span></span>
     <span class="user-spacer"></span>
+    <button class="btn btn-ghost notif-bell" id="notif-bell" title="Recordatorios" aria-label="Recordatorios">🔕</button>
     <span class="user-email" id="user-email"></span>
     <button class="btn btn-ghost" id="logout-btn" style="font-size:12px; padding:4px 10px;">Cerrar sesión</button>
+  </div>
+
+  <!-- Panel de ajustes de notificaciones (oculto por defecto) -->
+  <div id="notif-modal" class="notif-modal" style="display:none;" role="dialog" aria-labelledby="notif-modal-title">
+    <div class="notif-modal-backdrop" id="notif-modal-backdrop"></div>
+    <div class="notif-modal-card">
+      <div class="notif-modal-header">
+        <h3 id="notif-modal-title">Recordatorios 🔔</h3>
+        <button class="btn btn-ghost" id="notif-modal-close" style="padding:4px 10px; font-size:12px;">Cerrar</button>
+      </div>
+      <p class="notif-modal-hint" id="notif-permission-status">Comprobando permiso del navegador…</p>
+      <label class="notif-row">
+        <span>Activar recordatorios</span>
+        <input type="checkbox" id="notif-toggle-due" />
+      </label>
+      <label class="notif-row">
+        <span>Avisarme antes</span>
+        <select id="notif-lead">
+          <option value="5">5 minutos</option>
+          <option value="10">10 minutos</option>
+          <option value="15" selected>15 minutos</option>
+          <option value="30">30 minutos</option>
+          <option value="60">1 hora</option>
+        </select>
+      </label>
+      <label class="notif-row">
+        <span>Avisar cuando una tarea quede atrás</span>
+        <input type="checkbox" id="notif-overdue" checked />
+      </label>
+      <div class="notif-actions">
+        <button class="btn btn-ghost" id="notif-test">Enviar prueba</button>
+      </div>
+      <p class="notif-modal-hint" style="margin-top:14px; font-size:11px;">
+        Los recordatorios funcionan mientras Foco esté abierto en una pestaña o instalado como app. Para móvil, instala Foco desde el navegador (📲) y déjalo en segundo plano.
+      </p>
+    </div>
   </div>
   <header class="top">
     <div class="brand">
@@ -937,6 +1031,8 @@ const defaultState = {
   pomodoroDate: null,
   achievements: {},
   notifsEnabled: false,
+  notifsLeadMinutes: 15,   // cuántos minutos antes avisar
+  notifsOverdueOn: true,   // avisar cuando una tarea queda atrás
   journal: {},        // { "YYYY-MM-DD": { mood, wins, hard, tomorrow, savedAt } }
   deletedTaskIds: [], // queued deletions awaiting cloud sync
 };
@@ -1208,6 +1304,14 @@ function showMainApp() {
   if (currentUser && currentUser.email) {
     document.getElementById("user-email").textContent = currentUser.email;
   }
+  // Notificaciones: enganchar controles, actualizar campana, arrancar motor si estaba activo
+  try {
+    wireNotifControls();
+    updateNotifBell();
+    if (state.notifsEnabled && notifPermission() === "granted") {
+      startNotifEngine();
+    }
+  } catch(e) { console.warn("notifs init failed:", e); }
 }
 
 function showAuthMsg(text, type) {
@@ -1338,6 +1442,7 @@ async function onAuthSuccess() {
 
 document.getElementById("logout-btn").addEventListener("click", async () => {
   if (!confirm("¿Cerrar sesión?\n\nTus datos quedan a salvo en tu cuenta. Vuelves a verlos al iniciar sesión otra vez.")) return;
+  try { stopNotifEngine(); } catch(e) {}
   if (sb) await sb.auth.signOut();
   currentUser = null;
   // Clear local state on logout (so next user doesn't see previous user's data)
@@ -2163,6 +2268,260 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+/* ---------------- Notificaciones ---------------- */
+/* Estado: state.notifsEnabled, state.notifsLeadMinutes, state.notifsOverdueOn
+   Anti-spam: localStorage["foco_notif_fired"] = { "<taskId>:pre|over": timestamp }
+   Motor: setInterval cada 30s mientras la app esté abierta. */
+
+const NOTIF_FIRED_KEY = "foco_notif_fired";
+let notifInterval = null;
+
+function getFiredMap() {
+  try { return JSON.parse(localStorage.getItem(NOTIF_FIRED_KEY) || "{}"); }
+  catch(e) { return {}; }
+}
+function setFiredMap(m) {
+  // Limpia entradas viejas (>3 días) para no acumular
+  const cutoff = Date.now() - 3 * 24 * 3600 * 1000;
+  const cleaned = {};
+  for (const k in m) if (m[k] > cutoff) cleaned[k] = m[k];
+  localStorage.setItem(NOTIF_FIRED_KEY, JSON.stringify(cleaned));
+}
+
+function notifPermission() {
+  if (!("Notification" in window)) return "unsupported";
+  return Notification.permission; // "default" | "granted" | "denied"
+}
+
+function updateNotifBell() {
+  const bell = document.getElementById("notif-bell");
+  if (!bell) return;
+  const perm = notifPermission();
+  if (perm === "unsupported") {
+    bell.textContent = "🔕";
+    bell.classList.remove("active", "denied");
+    bell.title = "Tu navegador no soporta notificaciones";
+    return;
+  }
+  if (perm === "denied") {
+    bell.textContent = "🔕";
+    bell.classList.remove("active");
+    bell.classList.add("denied");
+    bell.title = "Permiso denegado · ajusta en el navegador";
+    return;
+  }
+  if (state.notifsEnabled && perm === "granted") {
+    bell.textContent = "🔔";
+    bell.classList.add("active");
+    bell.classList.remove("denied");
+    bell.title = "Recordatorios activos";
+  } else {
+    bell.textContent = "🔕";
+    bell.classList.remove("active", "denied");
+    bell.title = "Recordatorios desactivados";
+  }
+}
+
+async function requestDueNotifPermission() {
+  if (!("Notification" in window)) return "unsupported";
+  if (Notification.permission === "granted") return "granted";
+  if (Notification.permission === "denied") return "denied";
+  try {
+    const result = await Notification.requestPermission();
+    return result;
+  } catch(e) {
+    // Safari iOS antiguo: requestPermission requiere callback
+    return await new Promise((resolve) => {
+      try { Notification.requestPermission(resolve); } catch { resolve("denied"); }
+    });
+  }
+}
+
+async function showFocoNotification(title, body, tag) {
+  if (notifPermission() !== "granted") return;
+  const opts = {
+    body,
+    tag: tag || ("foco-" + Date.now()),
+    icon: "icon-192.png",
+    badge: "icon-192.png",
+    silent: false,
+  };
+  // Preferimos el service worker (funciona mejor en PWA en segundo plano y permite acciones)
+  try {
+    if ("serviceWorker" in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, opts);
+        return;
+      }
+    }
+  } catch(e) { /* fallback abajo */ }
+  // Fallback: notificación directa de la pestaña
+  try { new Notification(title, opts); } catch(e) { console.warn("Notification fallback failed:", e); }
+}
+
+function parseDueAt(t) {
+  if (!t || !t.dueDate) return null;
+  // Formato esperado: dueDate "YYYY-MM-DD", dueTime "HH:MM" (opcional)
+  const time = t.dueTime || "09:00";
+  const [Y, M, D] = t.dueDate.split("-").map(Number);
+  const [h, m] = time.split(":").map(Number);
+  return new Date(Y, (M || 1) - 1, D || 1, h || 0, m || 0, 0).getTime();
+}
+
+function checkDueTasks() {
+  if (!state.notifsEnabled || notifPermission() !== "granted") return;
+  const lead = (state.notifsLeadMinutes || 15) * 60 * 1000;
+  const now = Date.now();
+  const fired = getFiredMap();
+  let dirty = false;
+
+  for (const t of state.tasks) {
+    if (t.done) continue;
+    const dueAt = parseDueAt(t);
+    if (!dueAt) continue;
+
+    const diff = dueAt - now; // ms hasta el vencimiento
+
+    // Aviso previo
+    const preKey = t.id + ":pre";
+    if (diff > 0 && diff <= lead && !fired[preKey]) {
+      const minutes = Math.max(1, Math.round(diff / 60000));
+      const minLabel = minutes >= 60
+        ? Math.round(minutes / 60) + (Math.round(minutes/60) === 1 ? " hora" : " horas")
+        : minutes + (minutes === 1 ? " minuto" : " minutos");
+      showFocoNotification("🌱 Foco te recuerda", `${t.title} — en ${minLabel}`, preKey);
+      fired[preKey] = now;
+      dirty = true;
+    }
+
+    // Aviso de vencida (entre el momento de vencer y 2 minutos después)
+    const overKey = t.id + ":over";
+    if (state.notifsOverdueOn && diff <= 0 && diff > -2 * 60 * 1000 && !fired[overKey]) {
+      showFocoNotification("🍂 Una tarea quedó atrás", `${t.title} — sin estrés, puedes moverla a otro momento`, overKey);
+      fired[overKey] = now;
+      dirty = true;
+    }
+  }
+
+  if (dirty) setFiredMap(fired);
+}
+
+function startNotifEngine() {
+  stopNotifEngine();
+  // Primera revisión inmediata, luego cada 30s
+  checkDueTasks();
+  notifInterval = setInterval(checkDueTasks, 30000);
+}
+function stopNotifEngine() {
+  if (notifInterval) { clearInterval(notifInterval); notifInterval = null; }
+}
+
+/* ---------------- Panel de ajustes de notificaciones ---------------- */
+
+function openNotifModal() {
+  const modal = document.getElementById("notif-modal");
+  if (!modal) return;
+  // Sincroniza controles con el estado
+  document.getElementById("notif-toggle-due").checked = !!state.notifsEnabled;
+  document.getElementById("notif-lead").value = String(state.notifsLeadMinutes || 15);
+  document.getElementById("notif-overdue").checked = state.notifsOverdueOn !== false;
+  refreshNotifPermissionStatus();
+  modal.style.display = "flex";
+}
+function closeNotifModal() {
+  const modal = document.getElementById("notif-modal");
+  if (modal) modal.style.display = "none";
+}
+function refreshNotifPermissionStatus() {
+  const el = document.getElementById("notif-permission-status");
+  if (!el) return;
+  const perm = notifPermission();
+  if (perm === "unsupported") {
+    el.textContent = "Tu navegador no soporta notificaciones.";
+    el.style.color = "var(--ink-muted)";
+  } else if (perm === "granted") {
+    el.textContent = "Permiso del navegador: ✅ otorgado";
+    el.style.color = "var(--ok)";
+  } else if (perm === "denied") {
+    el.textContent = "Permiso bloqueado. Ábrelo en los ajustes de tu navegador para esta página.";
+    el.style.color = "var(--danger)";
+  } else {
+    el.textContent = "Activa el toggle y te pediré permiso al navegador.";
+    el.style.color = "var(--ink-soft)";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Los listeners se atan tras el primer render, no aquí
+});
+
+function wireNotifControls() {
+  const bell = document.getElementById("notif-bell");
+  const modal = document.getElementById("notif-modal");
+  if (!bell || !modal || bell.dataset.wired === "1") return;
+
+  bell.addEventListener("click", openNotifModal);
+  document.getElementById("notif-modal-close").addEventListener("click", closeNotifModal);
+  document.getElementById("notif-modal-backdrop").addEventListener("click", closeNotifModal);
+
+  document.getElementById("notif-toggle-due").addEventListener("change", async (e) => {
+    if (e.target.checked) {
+      const perm = await requestDueNotifPermission();
+      refreshNotifPermissionStatus();
+      if (perm !== "granted") {
+        e.target.checked = false;
+        state.notifsEnabled = false;
+        saveState(); updateNotifBell();
+        // Sincroniza también el toggle viejo del Pomodoro
+        const oldToggle = document.getElementById("notif-toggle");
+        if (oldToggle) oldToggle.checked = false;
+        if (perm === "denied") toast("Permiso denegado · ajústalo en el navegador");
+        return;
+      }
+      state.notifsEnabled = true;
+      saveState();
+      startNotifEngine();
+      updateNotifBell();
+      // Sincroniza también el toggle viejo del Pomodoro
+      const oldToggle = document.getElementById("notif-toggle");
+      if (oldToggle) oldToggle.checked = true;
+      toast("Recordatorios activados 🔔");
+    } else {
+      state.notifsEnabled = false;
+      saveState();
+      stopNotifEngine();
+      updateNotifBell();
+      const oldToggle = document.getElementById("notif-toggle");
+      if (oldToggle) oldToggle.checked = false;
+    }
+  });
+
+  document.getElementById("notif-lead").addEventListener("change", (e) => {
+    state.notifsLeadMinutes = parseInt(e.target.value, 10) || 15;
+    saveState();
+    // Reinicia el engine para que el nuevo lead aplique de inmediato
+    if (state.notifsEnabled) startNotifEngine();
+  });
+
+  document.getElementById("notif-overdue").addEventListener("change", (e) => {
+    state.notifsOverdueOn = e.target.checked;
+    saveState();
+  });
+
+  document.getElementById("notif-test").addEventListener("click", async () => {
+    const perm = await requestDueNotifPermission();
+    refreshNotifPermissionStatus();
+    if (perm !== "granted") {
+      toast("Necesito permiso para mostrarte la prueba");
+      return;
+    }
+    showFocoNotification("🌿 Prueba de Foco", "Si ves esto, los recordatorios funcionan ✨", "foco-test-" + Date.now());
+  });
+
+  bell.dataset.wired = "1";
+}
+
 /* ---------------- PWA ---------------- */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -2216,6 +2575,30 @@ async function bootstrap() {
 
   // Check existing session
   const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user) {
+    currentUser = session.user;
+    showMainApp();
+    setSyncStatus("syncing", "Cargando…");
+    const ok = await pullFromCloud();
+    if (!ok) {
+      // Couldn't pull (offline?). Use local cache.
+      setSyncStatus("offline");
+    }
+    updateStreak();
+    renderAll();
+    checkAchievements();
+  } else {
+    showAuthScreen();
+    setSyncStatus("offline", "Sin sesión");
+  }
+}
+
+bootstrap();
+</script>
+
+</body>
+</html>
+sb.auth.getSession();
   if (session && session.user) {
     currentUser = session.user;
     showMainApp();

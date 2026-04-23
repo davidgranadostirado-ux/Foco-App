@@ -1,7 +1,7 @@
 // Service Worker para Foco PWA
 // Estrategia: cache-first para los assets core, network-first para el HTML (para recibir actualizaciones)
 
-const CACHE_VERSION = "foco-v1.0.0";
+const CACHE_VERSION = "foco-v1.1.0";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -54,4 +54,40 @@ self.addEventListener("fetch", (event) => {
       }))
     );
   }
+});
+
+/* ---------------- Notificaciones ---------------- */
+
+// Mensaje desde la página: { type: "show-notification", title, body, tag, data }
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "show-notification") return;
+  const opts = {
+    body: data.body || "",
+    tag: data.tag || ("foco-" + Date.now()),
+    icon: "icon-192.png",
+    badge: "icon-192.png",
+    data: data.data || {},
+    silent: false,
+  };
+  event.waitUntil(self.registration.showNotification(data.title || "Foco", opts));
+});
+
+// Al tocar la notificación: abre o foca la PWA
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const allClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of allClients) {
+      // Si ya hay una pestaña/PWA abierta, foca esa
+      try {
+        await client.focus();
+        return;
+      } catch(e) { /* sigue probando */ }
+    }
+    // Si no hay ninguna, ábrela
+    if (self.clients.openWindow) {
+      await self.clients.openWindow("./");
+    }
+  })());
 });
