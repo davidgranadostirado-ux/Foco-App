@@ -765,10 +765,10 @@
 const SUPABASE_URL = "https://oiifqedhvjxszpsurhwe.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Kx2gIJ1AOpAhAcefWkKbng_-oL0J3ix";
 
-let supabase = null;
+let sb = null;
 try {
   if (window.supabase && window.supabase.createClient) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -904,14 +904,14 @@ function setSyncStatus(status, text) {
 /* ---------------- Cloud sync ---------------- */
 let syncTimeout = null;
 function scheduleCloudSync() {
-  if (!currentUser || !supabase) return;
+  if (!currentUser || !sb) return;
   clearTimeout(syncTimeout);
   setSyncStatus("syncing", "Cambios pendientes…");
   syncTimeout = setTimeout(pushToCloud, 800);
 }
 
 async function pushToCloud() {
-  if (!currentUser || !supabase) return;
+  if (!currentUser || !sb) return;
   setSyncStatus("syncing");
   try {
     // 1. Tasks: ensure all have UUIDs (migrate non-uuid IDs)
@@ -933,7 +933,7 @@ async function pushToCloud() {
         subtasks: t.subtasks || [],
         created_at: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
       }));
-      const { error: tErr } = await supabase.from("tasks").upsert(taskRows, { onConflict: "id" });
+      const { error: tErr } = await sb.from("tasks").upsert(taskRows, { onConflict: "id" });
       if (tErr) throw tErr;
     }
 
@@ -941,7 +941,7 @@ async function pushToCloud() {
     if (state.deletedTaskIds && state.deletedTaskIds.length > 0) {
       const validDeletes = state.deletedTaskIds.filter(isUuid);
       if (validDeletes.length > 0) {
-        const { error: dErr } = await supabase.from("tasks").delete().in("id", validDeletes);
+        const { error: dErr } = await sb.from("tasks").delete().in("id", validDeletes);
         if (dErr) throw dErr;
       }
       state.deletedTaskIds = [];
@@ -960,14 +960,14 @@ async function pushToCloud() {
         tomorrow: e.tomorrow || null,
       }));
     if (journalRows.length > 0) {
-      const { error: jErr } = await supabase
+      const { error: jErr } = await sb
         .from("journal_entries")
         .upsert(journalRows, { onConflict: "user_id,entry_date" });
       if (jErr) throw jErr;
     }
 
     // 4. User stats
-    const { error: sErr } = await supabase.from("user_stats").upsert({
+    const { error: sErr } = await sb.from("user_stats").upsert({
       user_id: currentUser.id,
       points: state.points || 0,
       streak: state.streak || 0,
@@ -988,13 +988,13 @@ async function pushToCloud() {
 }
 
 async function pullFromCloud() {
-  if (!currentUser || !supabase) return false;
+  if (!currentUser || !sb) return false;
   setSyncStatus("syncing", "Cargando tus datos…");
   try {
     const [tasksRes, journalRes, statsRes] = await Promise.all([
-      supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-      supabase.from("journal_entries").select("*"),
-      supabase.from("user_stats").select("*").eq("user_id", currentUser.id).maybeSingle(),
+      sb.from("tasks").select("*").order("created_at", { ascending: false }),
+      sb.from("journal_entries").select("*"),
+      sb.from("user_stats").select("*").eq("user_id", currentUser.id).maybeSingle(),
     ]);
 
     if (tasksRes.error) throw tasksRes.error;
@@ -1086,7 +1086,7 @@ document.querySelectorAll(".auth-tab").forEach(tab => {
 
 document.getElementById("auth-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!supabase) {
+  if (!sb) {
     showAuthMsg("No hay conexión con el servidor. Revisa tu internet.", "error");
     return;
   }
@@ -1104,7 +1104,7 @@ document.getElementById("auth-form").addEventListener("submit", async (e) => {
     if (authMode === "signup") {
       // Check if local has data — offer to keep
       const hasLocalData = (state.tasks.length > 0) || Object.keys(state.journal).length > 0;
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       // session may be null if email confirmation is required
       if (!data.session) {
@@ -1125,7 +1125,7 @@ document.getElementById("auth-form").addEventListener("submit", async (e) => {
       }
       onAuthSuccess();
     } else {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
       currentUser = data.user;
       // On sign-in, replace local with cloud
@@ -1142,7 +1142,7 @@ document.getElementById("auth-form").addEventListener("submit", async (e) => {
 });
 
 document.getElementById("auth-magic").addEventListener("click", async () => {
-  if (!supabase) {
+  if (!sb) {
     showAuthMsg("Sin conexión con el servidor.", "error");
     return;
   }
@@ -1156,7 +1156,7 @@ document.getElementById("auth-magic").addEventListener("click", async () => {
   btn.disabled = true;
   showAuthMsg("Enviando enlace al email…", "info");
   try {
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await sb.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: window.location.href }
     });
@@ -1193,7 +1193,7 @@ async function onAuthSuccess() {
 
 document.getElementById("logout-btn").addEventListener("click", async () => {
   if (!confirm("¿Cerrar sesión?\n\nTus datos quedan a salvo en tu cuenta. Vuelves a verlos al iniciar sesión otra vez.")) return;
-  if (supabase) await supabase.auth.signOut();
+  if (sb) await sb.auth.signOut();
   currentUser = null;
   // Clear local state on logout (so next user doesn't see previous user's data)
   state = structuredClone(defaultState);
@@ -1206,8 +1206,8 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 });
 
 /* Listen for auth state changes (handles magic link return) */
-if (supabase) {
-  supabase.auth.onAuthStateChange((event, session) => {
+if (sb) {
+  sb.auth.onAuthStateChange((event, session) => {
     if (event === "SIGNED_IN" && session && (!currentUser || currentUser.id !== session.user.id)) {
       currentUser = session.user;
       // pull and show app
@@ -1880,7 +1880,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
 
 /* ---------------- Bootstrap ---------------- */
 async function bootstrap() {
-  if (!supabase) {
+  if (!sb) {
     // No Supabase available — fall back to local-only mode
     showMainApp();
     document.getElementById("logout-btn").style.display = "none";
@@ -1893,7 +1893,7 @@ async function bootstrap() {
   }
 
   // Check existing session
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (session && session.user) {
     currentUser = session.user;
     showMainApp();
