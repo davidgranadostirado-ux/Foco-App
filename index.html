@@ -535,7 +535,111 @@
     .timer-display { font-size: 64px; }
     nav.tabs button { padding: 6px 12px; font-size: 13px; }
     .auth-card { padding: 24px 20px; }
+    .cal-grid { grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-cell { min-height: 56px; padding: 4px; font-size: 11px; }
+    .cal-cell .day-num { font-size: 11px; }
+    .cal-legend { font-size: 10px; gap: 8px; flex-wrap: wrap; }
   }
+
+  /* ---------- CALENDARIO / JARDÍN ---------- */
+  .cal-header {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .cal-header h2 {
+    margin: 0; font-size: 20px; font-weight: 500;
+    min-width: 180px; text-align: center; text-transform: capitalize;
+  }
+  .cal-nav { padding: 4px 14px !important; font-size: 18px !important; }
+
+  .cal-legend {
+    display: flex; gap: 18px; justify-content: center;
+    margin-bottom: 16px; flex-wrap: wrap;
+    font-size: 12px; color: var(--ink-soft);
+  }
+  .cal-leg-item { display: inline-flex; align-items: center; gap: 6px; }
+  .cal-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block;
+  }
+  .cal-dot.tierra { background: var(--surface-2); border: 1px solid var(--line); }
+  .cal-dot.semilla { background: #d6c2a3; }
+  .cal-dot.brote { background: var(--accent); opacity: 0.55; }
+  .cal-dot.crecida { background: var(--accent); }
+  .cal-dot.vencida { background: var(--danger); }
+
+  .cal-weekdays {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    margin-bottom: 6px;
+  }
+  .cal-weekdays > div {
+    text-align: center; font-size: 11px; color: var(--ink-muted);
+    text-transform: uppercase; letter-spacing: 1px; font-weight: 500;
+  }
+
+  .cal-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+  }
+  .cal-cell {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    min-height: 78px;
+    padding: 8px 6px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    gap: 4px;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+    position: relative;
+  }
+  .cal-cell:hover { transform: translateY(-1px); box-shadow: var(--shadow); background: var(--surface-2); }
+  .cal-cell.empty { background: transparent; border: 1px dashed var(--line); cursor: default; opacity: 0.5; }
+  .cal-cell.empty:hover { transform: none; box-shadow: none; background: transparent; }
+  .cal-cell.today { border-color: var(--accent); border-width: 2px; }
+  .cal-cell.has-vencida { border-color: var(--danger); }
+  .cal-cell .day-num {
+    font-size: 13px; font-weight: 500; color: var(--ink-soft);
+    align-self: flex-start; margin-left: 2px;
+  }
+  .cal-cell.today .day-num { color: var(--accent); font-weight: 600; }
+  .cal-cell .day-plant {
+    font-size: 22px; line-height: 1;
+    margin-top: auto;
+  }
+  .cal-cell .day-count {
+    font-size: 10px; color: var(--ink-muted);
+    background: var(--surface-2);
+    padding: 1px 6px; border-radius: 999px;
+    margin-top: 2px;
+  }
+
+  .cal-day-detail {
+    margin-top: 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .cal-day-detail-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .cal-day-detail-header h3 {
+    margin: 0; font-size: 16px; font-weight: 500; text-transform: capitalize;
+  }
+
+  /* Etiqueta de fecha en las tareas */
+  .task-due {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-soft);
+    margin-left: 6px;
+  }
+  .task-due.today { background: rgba(122,158,126,0.15); color: var(--accent); }
+  .task-due.overdue { background: rgba(195,123,123,0.15); color: var(--danger); }
+  .task-due.soon { background: rgba(138,166,189,0.15); color: var(--calm); }
 </style>
 </head>
 <body>
@@ -604,6 +708,7 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="today">Hoy</button>
+    <button class="tab-btn" data-tab="calendar">Jardín</button>
     <button class="tab-btn" data-tab="matrix">Matriz</button>
     <button class="tab-btn" data-tab="focus">Enfoque</button>
     <button class="tab-btn" data-tab="journal">Diario</button>
@@ -631,6 +736,11 @@
         </select>
         <button class="btn btn-primary" id="add-task-btn">Añadir</button>
       </div>
+      <div class="add-row" style="margin-top:10px;">
+        <input type="date" id="new-task-date" title="Fecha (opcional)" style="flex:1; min-width:140px;" />
+        <input type="time" id="new-task-time-of-day" title="Hora (opcional)" style="flex:1; min-width:120px;" />
+        <button type="button" class="btn btn-ghost" id="clear-date-btn" title="Quitar fecha" style="padding:8px 12px;">Sin fecha</button>
+      </div>
       <div style="margin-top:10px; font-size:12px; color: var(--ink-muted);">
         Consejo TDAH: escribe la tarea más pequeña posible. Puedes desglosarla después con ⋯
       </div>
@@ -640,6 +750,34 @@
 
     <div class="section-title">Completadas hoy</div>
     <div id="task-list-done"></div>
+  </section>
+
+  <!-- CALENDARIO / JARDÍN -->
+  <section id="tab-calendar" class="view">
+    <div class="cal-header">
+      <button class="btn btn-ghost cal-nav" id="cal-prev" title="Mes anterior">‹</button>
+      <h2 id="cal-title">—</h2>
+      <button class="btn btn-ghost cal-nav" id="cal-next" title="Mes siguiente">›</button>
+      <button class="btn btn-ghost" id="cal-today" title="Volver al mes actual" style="margin-left:12px;">Hoy</button>
+    </div>
+    <div class="cal-legend">
+      <span class="cal-leg-item"><span class="cal-dot tierra"></span> Sin tareas</span>
+      <span class="cal-leg-item"><span class="cal-dot semilla"></span> Pendiente</span>
+      <span class="cal-leg-item"><span class="cal-dot brote"></span> En progreso</span>
+      <span class="cal-leg-item"><span class="cal-dot crecida"></span> Todo hecho</span>
+      <span class="cal-leg-item"><span class="cal-dot vencida"></span> Atrasada</span>
+    </div>
+    <div class="cal-weekdays">
+      <div>L</div><div>M</div><div>X</div><div>J</div><div>V</div><div>S</div><div>D</div>
+    </div>
+    <div id="cal-grid" class="cal-grid"></div>
+    <div id="cal-day-detail" class="cal-day-detail" style="display:none;">
+      <div class="cal-day-detail-header">
+        <h3 id="cal-day-title">—</h3>
+        <button class="btn btn-ghost" id="cal-day-close" style="padding:4px 10px; font-size:12px;">Cerrar</button>
+      </div>
+      <div id="cal-day-tasks"></div>
+    </div>
   </section>
 
   <!-- MATRIX -->
@@ -933,6 +1071,8 @@ async function pushToCloud() {
         estimated_min: t.estimatedMin || null,
         done: !!t.done,
         done_at: t.doneAt ? new Date(t.doneAt).toISOString() : null,
+        due_date: t.dueDate || null,
+        due_time: t.dueTime || null,
         subtasks: t.subtasks || [],
         created_at: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
       }));
@@ -1012,6 +1152,8 @@ async function pullFromCloud() {
       done: !!t.done,
       doneAt: t.done_at ? new Date(t.done_at).getTime() : null,
       createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
+      dueDate: t.due_date || null,
+      dueTime: t.due_time || null,
       subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
       expanded: false,
     }));
@@ -1231,6 +1373,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.tab === "matrix") renderMatrix();
     if (btn.dataset.tab === "rewards") renderRewards();
     if (btn.dataset.tab === "journal") renderJournal();
+    if (btn.dataset.tab === "calendar") renderCalendar();
   });
 });
 
@@ -1242,7 +1385,7 @@ const QUADRANTS = {
   q4: { label: "Soltar", short: "Opcional" },
 };
 
-function addTask(title, quadrant, estimatedMin) {
+function addTask(title, quadrant, estimatedMin, dueDate, dueTime) {
   if (!title.trim()) return;
   const task = {
     id: uid(),
@@ -1252,6 +1395,8 @@ function addTask(title, quadrant, estimatedMin) {
     done: false,
     createdAt: Date.now(),
     doneAt: null,
+    dueDate: dueDate || null,
+    dueTime: dueTime || null,
     subtasks: [],
     expanded: false,
   };
@@ -1372,6 +1517,170 @@ function isSameDay(a, b) {
   return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
 }
 
+/* ---------------- Fechas / Calendario ---------------- */
+
+function dateToYmd(d) {
+  if (!d) return null;
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+
+function ymdToDate(s) {
+  if (!s) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// Devuelve "vencida" | "hoy" | "manana" | "soon" | "future" | null
+function dueStatus(t) {
+  if (!t.dueDate || t.done) return null;
+  const today = todayStr();
+  if (t.dueDate < today) return "vencida";
+  if (t.dueDate === today) return "hoy";
+  // tomorrow
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  if (t.dueDate === dateToYmd(tomorrow)) return "manana";
+  // dentro de 7 días
+  const inWeek = new Date(); inWeek.setDate(inWeek.getDate() + 7);
+  if (t.dueDate <= dateToYmd(inWeek)) return "soon";
+  return "future";
+}
+
+function dueBadgeHtml(t) {
+  if (!t.dueDate) return "";
+  const status = dueStatus(t);
+  let cls = "task-due";
+  let label = "";
+  const date = ymdToDate(t.dueDate);
+  const dayName = date.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
+  if (status === "vencida") { cls += " overdue"; label = `⚠ ${dayName}`; }
+  else if (status === "hoy") { cls += " today"; label = `📅 Hoy`; }
+  else if (status === "manana") { cls += " soon"; label = `📅 Mañana`; }
+  else if (status === "soon") { cls += " soon"; label = `📅 ${dayName}`; }
+  else { label = `📅 ${dayName}`; }
+  if (t.dueTime) label += ` · ${t.dueTime.slice(0,5)}`;
+  return `<span class="${cls}">${label}</span>`;
+}
+
+/* ---------------- Calendario / Jardín ---------------- */
+let calCurrentMonth = null; // {year, month}
+let calSelectedDay = null;
+
+function calInit() {
+  const now = new Date();
+  calCurrentMonth = { year: now.getFullYear(), month: now.getMonth() };
+}
+
+function calMonthName(year, month) {
+  const d = new Date(year, month, 1);
+  return d.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+}
+
+function tasksForDate(ymd) {
+  return state.tasks.filter(t => t.dueDate === ymd);
+}
+
+// Determina el aspecto visual del día según las tareas que contiene
+function dayPlantState(ymd) {
+  const tasks = tasksForDate(ymd);
+  if (tasks.length === 0) return { plant: "", className: "empty-day", count: 0 };
+  const total = tasks.length;
+  const done = tasks.filter(t => t.done).length;
+  const today = todayStr();
+  const hasOverdue = tasks.some(t => !t.done && t.dueDate < today);
+  let plant = "🌰";
+  let className = "";
+  if (done === total) { plant = "🌳"; className = "all-done"; }
+  else if (done > 0) { plant = "🌿"; className = "partial"; }
+  else if (hasOverdue) { plant = "🍂"; className = "overdue"; }
+  return { plant, className: className + (hasOverdue ? " has-vencida" : ""), count: total };
+}
+
+function renderCalendar() {
+  if (!calCurrentMonth) calInit();
+  const { year, month } = calCurrentMonth;
+  document.getElementById("cal-title").textContent = calMonthName(year, month);
+
+  const grid = document.getElementById("cal-grid");
+  grid.innerHTML = "";
+
+  // Primer día del mes (lunes = 0 en nuestra grid)
+  const firstDay = new Date(year, month, 1);
+  let dayOfWeek = firstDay.getDay(); // 0 = domingo
+  // Convertir: domingo = 6, lunes = 0
+  dayOfWeek = (dayOfWeek + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = todayStr();
+
+  // Celdas vacías al inicio
+  for (let i = 0; i < dayOfWeek; i++) {
+    const empty = document.createElement("div");
+    empty.className = "cal-cell empty";
+    grid.appendChild(empty);
+  }
+
+  // Celdas de los días del mes
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ymd = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const cell = document.createElement("div");
+    cell.className = "cal-cell";
+    if (ymd === today) cell.classList.add("today");
+
+    const { plant, className, count } = dayPlantState(ymd);
+    if (className) cell.className += " " + className;
+
+    cell.innerHTML = `
+      <span class="day-num">${day}</span>
+      ${plant ? `<span class="day-plant">${plant}</span>` : ''}
+      ${count > 0 ? `<span class="day-count">${count}</span>` : ''}
+    `;
+    cell.addEventListener("click", () => openCalDay(ymd));
+    grid.appendChild(cell);
+  }
+}
+
+function openCalDay(ymd) {
+  calSelectedDay = ymd;
+  const detail = document.getElementById("cal-day-detail");
+  const title = document.getElementById("cal-day-title");
+  const list = document.getElementById("cal-day-tasks");
+
+  const date = ymdToDate(ymd);
+  title.textContent = date.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  list.innerHTML = "";
+  const tasks = tasksForDate(ymd);
+  if (tasks.length === 0) {
+    list.innerHTML = `<div class="empty" style="padding:20px;"><p style="font-size:13px;">Tierra fértil. Aún no hay nada plantado para este día.</p></div>`;
+  } else {
+    tasks.forEach(t => list.appendChild(renderTask(t)));
+  }
+  detail.style.display = "block";
+  detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+document.getElementById("cal-prev").addEventListener("click", () => {
+  if (!calCurrentMonth) calInit();
+  calCurrentMonth.month -= 1;
+  if (calCurrentMonth.month < 0) { calCurrentMonth.month = 11; calCurrentMonth.year -= 1; }
+  document.getElementById("cal-day-detail").style.display = "none";
+  renderCalendar();
+});
+document.getElementById("cal-next").addEventListener("click", () => {
+  if (!calCurrentMonth) calInit();
+  calCurrentMonth.month += 1;
+  if (calCurrentMonth.month > 11) { calCurrentMonth.month = 0; calCurrentMonth.year += 1; }
+  document.getElementById("cal-day-detail").style.display = "none";
+  renderCalendar();
+});
+document.getElementById("cal-today").addEventListener("click", () => {
+  calInit();
+  document.getElementById("cal-day-detail").style.display = "none";
+  renderCalendar();
+});
+document.getElementById("cal-day-close").addEventListener("click", () => {
+  document.getElementById("cal-day-detail").style.display = "none";
+});
+
 function renderTask(t) {
   const el = document.createElement("div");
   el.className = "task " + t.quadrant + (t.done ? " done":"") + (t.expanded ? " expanded":"");
@@ -1391,6 +1700,7 @@ function renderTask(t) {
           ${t.estimatedMin ? `<span class="chip time">⏱ ${t.estimatedMin} min</span>` : ''}
           ${subTotal > 0 ? `<span>📋 ${subDone}/${subTotal} pasos</span>` : ''}
           ${isFocused ? '<span class="chip focus">◉ En enfoque</span>' : ''}
+          ${dueBadgeHtml(t)}
         </div>
       </div>
       <div class="task-actions">
@@ -1752,9 +2062,18 @@ document.getElementById("add-task-btn").addEventListener("click", () => {
   const input = document.getElementById("new-task-input");
   const q = document.getElementById("new-task-quadrant").value;
   const t = document.getElementById("new-task-time").value;
-  addTask(input.value, q, t);
+  const dateInput = document.getElementById("new-task-date");
+  const timeInput = document.getElementById("new-task-time-of-day");
+  addTask(input.value, q, t, dateInput.value || null, timeInput.value || null);
   input.value = "";
+  dateInput.value = "";
+  timeInput.value = "";
   input.focus();
+});
+
+document.getElementById("clear-date-btn").addEventListener("click", () => {
+  document.getElementById("new-task-date").value = "";
+  document.getElementById("new-task-time-of-day").value = "";
 });
 
 document.getElementById("new-task-input").addEventListener("keydown", (e) => {
