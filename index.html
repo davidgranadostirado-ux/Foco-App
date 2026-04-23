@@ -929,7 +929,7 @@ async function pushToCloud() {
         id: t.id,
         user_id: currentUser.id,
         title: t.title,
-        quadrant: t.quadrant || "q2",
+        quadrant: (t.quadrant || "q2").toUpperCase(),
         estimated_min: t.estimatedMin || null,
         done: !!t.done,
         done_at: t.doneAt ? new Date(t.doneAt).toISOString() : null,
@@ -1007,7 +1007,7 @@ async function pullFromCloud() {
     state.tasks = (tasksRes.data || []).map(t => ({
       id: t.id,
       title: t.title,
-      quadrant: t.quadrant || "q2",
+      quadrant: (t.quadrant || "q2").toLowerCase(),
       estimatedMin: t.estimated_min || 0,
       done: !!t.done,
       doneAt: t.done_at ? new Date(t.done_at).getTime() : null,
