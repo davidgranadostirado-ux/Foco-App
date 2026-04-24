@@ -2691,8 +2691,17 @@ function wireNotifControls() {
   document.getElementById("notif-test").addEventListener("click", async () => {
     const perm = await requestDueNotifPermission();
     refreshNotifPermissionStatus();
+    if (perm === "unsupported") {
+      toast("Tu navegador no soporta notificaciones");
+      return;
+    }
+    if (perm === "denied") {
+      toast("Permiso bloqueado · ábrelo en los ajustes del navegador para esta página");
+      return;
+    }
     if (perm !== "granted") {
-      toast("Necesito permiso para mostrarte la prueba");
+      // Quedó en "default" (cerraste el popup sin decidir)
+      toast("Acepta el aviso del navegador y vuelve a tocar Probar");
       return;
     }
     showFocoNotification("🌿 Prueba de Foco", "Si ves esto, los recordatorios funcionan ✨", "foco-test-" + Date.now());
