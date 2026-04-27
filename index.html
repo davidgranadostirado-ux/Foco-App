@@ -140,6 +140,41 @@
     border-radius: var(--radius); padding: 16px;
     box-shadow: var(--shadow); margin-bottom: 20px;
   }
+  /* Categorías */
+  .cat-row {
+    display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+    margin-top: 10px;
+  }
+  .cat-row-label {
+    font-size: 11px; color: var(--ink-muted);
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-right: 4px;
+  }
+  .cat-pill {
+    border: 1px solid var(--line); background: var(--surface-2);
+    border-radius: 999px; padding: 5px 11px;
+    font-size: 12px; cursor: pointer; transition: all .15s ease;
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--ink-soft);
+    user-select: none;
+  }
+  .cat-pill:hover { background: var(--line); color: var(--ink); }
+  .cat-pill.active {
+    background: var(--cat-color, var(--accent));
+    border-color: var(--cat-color, var(--accent));
+    color: white; font-weight: 500;
+  }
+  .cat-pill .cat-emoji { font-size: 13px; line-height: 1; }
+  /* Barrita de color en la tarea */
+  .task.has-cat { border-left-color: var(--cat-color); }
+  .task-cat-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: color-mix(in srgb, var(--cat-color, var(--ink-muted)) 18%, transparent);
+    color: color-mix(in srgb, var(--cat-color, var(--ink)) 80%, var(--ink));
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 500;
+  }
+
   .add-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .add-row input[type="text"] {
     flex: 1 1 240px; border: 1px solid var(--line);
@@ -147,10 +182,22 @@
     padding: 10px 12px; outline: none; transition: border .15s;
   }
   .add-row input[type="text"]:focus { border-color: var(--accent); }
-  .add-row select {
+  .add-row select,
+  .add-row input[type="date"],
+  .add-row input[type="time"] {
     border: 1px solid var(--line); background: var(--surface-2);
     border-radius: var(--radius-sm); padding: 10px 12px; outline: none;
+    font-family: inherit; font-size: 14px; color: var(--ink);
+    transition: border .15s;
   }
+  .add-row select:focus,
+  .add-row input[type="date"]:focus,
+  .add-row input[type="time"]:focus { border-color: var(--accent); }
+  /* Icono nativo del date picker más sutil */
+  .add-row input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55; cursor: pointer;
+  }
+  .add-row input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 
   .btn {
     border: 0; border-radius: var(--radius-sm);
@@ -865,6 +912,11 @@
         <input type="password" id="auth-password" autocomplete="current-password" minlength="6" placeholder="••••••" />
       </div>
 
+      <label class="auth-remember" for="auth-remember" style="display:flex; align-items:center; gap:8px; font-size:13px; color: var(--ink-soft); margin: 6px 0 14px; cursor:pointer; user-select:none;">
+        <input type="checkbox" id="auth-remember" checked style="width:16px; height:16px; accent-color: var(--accent); cursor:pointer;" />
+        <span>Recordarme en este dispositivo</span>
+      </label>
+
       <button type="submit" class="btn btn-primary auth-submit" id="auth-submit">Entrar</button>
 
       <div class="auth-divider">o</div>
@@ -1002,12 +1054,20 @@
       <div class="add-row" style="margin-top:10px;">
         <input type="date" id="new-task-date" title="Fecha (opcional)" style="flex:1; min-width:140px;" />
         <select id="new-task-time-of-day" title="Hora (opcional)" style="flex:1; min-width:140px;">
-          <option value="">⏰ Sin hora</option>
+          <option value="">🕒 Sin hora</option>
         </select>
         <button type="button" class="btn btn-ghost" id="clear-date-btn" title="Quitar fecha" style="padding:8px 12px;">Sin fecha</button>
       </div>
-      <div style="margin-top:10px; font-size:12px; color: var(--ink-muted);">
-        Consejo TDAH: escribe la tarea más pequeña posible. Puedes desglosarla después con ⋯
+      <div class="cat-row" id="new-task-cat-row">
+        <span class="cat-row-label">Bloque:</span>
+        <!-- Pills generados por JS -->
+      </div>
+      <div style="margin-top:12px; font-size:12px; color: var(--ink-muted);">
+        Consejo: escribe la tarea más pequeña posible. Puedes desglosarla después con ⋯
+      </div>
+      <div class="cat-row" id="filter-cat-row" style="margin-top:14px; padding-top:14px; border-top:1px dashed var(--line);">
+        <span class="cat-row-label">Filtrar:</span>
+        <!-- Pills generados por JS -->
       </div>
     </div>
 
@@ -1171,25 +1231,46 @@
 const SUPABASE_URL = "https://oiifqedhvjxszpsurhwe.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Kx2gIJ1AOpAhAcefWkKbng_-oL0J3ix";
 
-let sb = null;
-try {
-  if (window.supabase && window.supabase.createClient) {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      }
-    });
-  }
-} catch(e) {
-  console.warn("No se pudo inicializar Supabase:", e);
+const FOCO_REMEMBER_KEY = "foco_remember_session";
+function getRememberPref() {
+  return localStorage.getItem(FOCO_REMEMBER_KEY) !== "false"; // default true
 }
+function setRememberPref(remember) {
+  localStorage.setItem(FOCO_REMEMBER_KEY, remember ? "true" : "false");
+}
+
+let sb = null;
+function initSupabase(remember) {
+  try {
+    if (window.supabase && window.supabase.createClient) {
+      const storage = remember ? window.localStorage : window.sessionStorage;
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storage: storage,
+        }
+      });
+    }
+  } catch(e) {
+    console.warn("No se pudo inicializar Supabase:", e);
+  }
+}
+initSupabase(getRememberPref());
 
 let currentUser = null;
 
 /* ---------------- State ---------------- */
 const STORAGE_KEY = "foco_tdah_state_v1";
+
+const DEFAULT_CATEGORIES = [
+  { id: "personal",   name: "Personal",   color: "#b89cd6", emoji: "💜" },
+  { id: "trabajo",    name: "Trabajo",    color: "#7eb3d6", emoji: "💼" },
+  { id: "familia",    name: "Familia",    color: "#e6a99a", emoji: "🏡" },
+  { id: "espiritual", name: "Espiritual", color: "#d6c280", emoji: "🙏" },
+  { id: "ejercicio",  name: "Ejercicio",  color: "#9ad6a3", emoji: "💪" },
+];
 
 const defaultState = {
   tasks: [],
@@ -1206,7 +1287,15 @@ const defaultState = {
   notifsOverdueOn: true,   // avisar cuando una tarea queda atrás
   journal: {},        // { "YYYY-MM-DD": { mood, wins, hard, tomorrow, savedAt } }
   deletedTaskIds: [], // queued deletions awaiting cloud sync
+  categories: structuredClone(DEFAULT_CATEGORIES),
+  activeCategoryFilter: null, // null = todas
+  newTaskCategory: null,      // categoría seleccionada al crear
 };
+
+function getCategoryById(id) {
+  if (!id) return null;
+  return (state.categories || []).find(c => c.id === id) || null;
+}
 
 let state = loadState();
 
@@ -1535,6 +1624,13 @@ document.querySelectorAll(".auth-tab").forEach(tab => {
 
 document.getElementById("auth-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  // Aplica preferencia de "recordarme" antes de cualquier llamada a Supabase
+  const rememberCb = document.getElementById("auth-remember");
+  const remember = rememberCb ? rememberCb.checked : true;
+  if (remember !== getRememberPref()) {
+    setRememberPref(remember);
+    initSupabase(remember); // recrea cliente con el storage adecuado
+  }
   if (!sb) {
     showAuthMsg("No hay conexión con el servidor. Revisa tu internet.", "error");
     return;
@@ -1591,6 +1687,13 @@ document.getElementById("auth-form").addEventListener("submit", async (e) => {
 });
 
 document.getElementById("auth-magic").addEventListener("click", async () => {
+  // Aplica preferencia de "recordarme" antes del envío del magic link
+  const rememberCb = document.getElementById("auth-remember");
+  const remember = rememberCb ? rememberCb.checked : true;
+  if (remember !== getRememberPref()) {
+    setRememberPref(remember);
+    initSupabase(remember);
+  }
   if (!sb) {
     showAuthMsg("Sin conexión con el servidor.", "error");
     return;
@@ -1690,7 +1793,7 @@ const QUADRANTS = {
   q4: { label: "Soltar", short: "Opcional" },
 };
 
-function addTask(title, quadrant, estimatedMin, dueDate, dueTime) {
+function addTask(title, quadrant, estimatedMin, dueDate, dueTime, categoryId) {
   if (!title.trim()) return;
   const task = {
     id: uid(),
@@ -1702,6 +1805,7 @@ function addTask(title, quadrant, estimatedMin, dueDate, dueTime) {
     doneAt: null,
     dueDate: dueDate || null,
     dueTime: dueTime || null,
+    categoryId: categoryId || null,
     subtasks: [],
     expanded: false,
   };
@@ -1795,14 +1899,23 @@ function setFocusTask(id) {
 }
 
 function renderTasks() {
+  // Renderiza pills de categoría primero (por si cambiaron)
+  renderCategoryPills();
+
   const list = document.getElementById("task-list");
   const listDone = document.getElementById("task-list-done");
-  const active = state.tasks.filter(t => !t.done);
-  const done = state.tasks.filter(t => t.done);
+  const filterCat = state.activeCategoryFilter || null;
+  const matchesFilter = (t) => !filterCat || t.categoryId === filterCat;
+
+  const active = state.tasks.filter(t => !t.done && matchesFilter(t));
+  const done = state.tasks.filter(t => t.done && matchesFilter(t));
 
   list.innerHTML = "";
   if (active.length === 0) {
-    list.innerHTML = '<div class="empty"><p>Respira. ¿Cuál es la siguiente pequeña cosa?</p></div>';
+    const msg = filterCat
+      ? '<div class="empty"><p>Sin tareas en este bloque. Respira y disfruta.</p></div>'
+      : '<div class="empty"><p>Respira. ¿Cuál es la siguiente pequeña cosa?</p></div>';
+    list.innerHTML = msg;
   } else {
     const order = { q1:0, q2:1, q3:2, q4:3 };
     const sorted = active.slice().sort((a,b) => (order[a.quadrant] - order[b.quadrant]));
@@ -1816,6 +1929,57 @@ function renderTasks() {
   } else {
     todayDone.forEach(t => listDone.appendChild(renderTask(t)));
   }
+}
+
+// Renderiza los pills de categoría tanto en el formulario (selección) como en el filtro
+function renderCategoryPills() {
+  const newRow = document.getElementById("new-task-cat-row");
+  const filterRow = document.getElementById("filter-cat-row");
+  if (!newRow || !filterRow) return;
+  const cats = state.categories || [];
+
+  // 1) Selector al crear (toggle)
+  newRow.querySelectorAll(".cat-pill").forEach(p => p.remove());
+  cats.forEach(c => {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = "cat-pill" + (state.newTaskCategory === c.id ? " active" : "");
+    pill.style.setProperty("--cat-color", c.color);
+    pill.innerHTML = `<span class="cat-emoji">${c.emoji}</span>${escapeHtml(c.name)}`;
+    pill.addEventListener("click", () => {
+      state.newTaskCategory = (state.newTaskCategory === c.id) ? null : c.id;
+      saveState();
+      renderCategoryPills();
+    });
+    newRow.appendChild(pill);
+  });
+
+  // 2) Filtros (uno solo activo, "Todas" desactiva)
+  filterRow.querySelectorAll(".cat-pill").forEach(p => p.remove());
+  const allPill = document.createElement("button");
+  allPill.type = "button";
+  allPill.className = "cat-pill" + (!state.activeCategoryFilter ? " active" : "");
+  allPill.style.setProperty("--cat-color", "var(--accent)");
+  allPill.textContent = "Todas";
+  allPill.addEventListener("click", () => {
+    state.activeCategoryFilter = null;
+    saveState();
+    renderTasks();
+  });
+  filterRow.appendChild(allPill);
+  cats.forEach(c => {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = "cat-pill" + (state.activeCategoryFilter === c.id ? " active" : "");
+    pill.style.setProperty("--cat-color", c.color);
+    pill.innerHTML = `<span class="cat-emoji">${c.emoji}</span>${escapeHtml(c.name)}`;
+    pill.addEventListener("click", () => {
+      state.activeCategoryFilter = (state.activeCategoryFilter === c.id) ? null : c.id;
+      saveState();
+      renderTasks();
+    });
+    filterRow.appendChild(pill);
+  });
 }
 
 function isSameDay(a, b) {
@@ -2027,12 +2191,17 @@ document.getElementById("cal-day-close").addEventListener("click", () => {
 
 function renderTask(t) {
   const el = document.createElement("div");
-  el.className = "task " + t.quadrant + (t.done ? " done":"") + (t.expanded ? " expanded":"");
+  const cat = getCategoryById(t.categoryId);
+  el.className = "task " + t.quadrant + (t.done ? " done":"") + (t.expanded ? " expanded":"") + (cat ? " has-cat" : "");
+  if (cat) el.style.setProperty("--cat-color", cat.color);
   el.dataset.id = t.id;
 
   const subDone = t.subtasks.filter(s=>s.done).length;
   const subTotal = t.subtasks.length;
   const isFocused = state.focusTaskId === t.id;
+  const catChipHtml = cat
+    ? `<span class="task-cat-tag"><span>${cat.emoji}</span>${escapeHtml(cat.name)}</span>`
+    : '';
 
   el.innerHTML = `
     <div class="task-head">
@@ -2040,6 +2209,7 @@ function renderTask(t) {
       <div class="task-main">
         <p class="task-title">${escapeHtml(t.title)}</p>
         <div class="task-meta">
+          ${catChipHtml}
           <span class="chip ${t.quadrant}">${QUADRANTS[t.quadrant].short}</span>
           ${t.estimatedMin ? `<span class="chip time">⏱ ${t.estimatedMin} min</span>` : ''}
           ${subTotal > 0 ? `<span>📋 ${subDone}/${subTotal} pasos</span>` : ''}
@@ -2408,10 +2578,11 @@ document.getElementById("add-task-btn").addEventListener("click", () => {
   const t = document.getElementById("new-task-time").value;
   const dateInput = document.getElementById("new-task-date");
   const timeInput = document.getElementById("new-task-time-of-day");
-  addTask(input.value, q, t, dateInput.value || null, timeInput.value || null);
+  addTask(input.value, q, t, dateInput.value || null, timeInput.value || null, state.newTaskCategory || null);
   input.value = "";
   dateInput.value = "";
   timeInput.value = "";
+  // Mantenemos la categoría seleccionada para tareas seguidas
   input.focus();
 });
 
@@ -2817,9 +2988,7 @@ function wireNotifControls() {
   // Engranaje → ajustes
   gear.addEventListener("click", openSettingsModal);
   document.getElementById("settings-modal-close").addEventListener("click", closeSettingsModal);
-  document.getElementById("settings-modal-backdrop").addEventListener("click", closeSettingsModal);
-
-  document.getElementById("notif-toggle-due").addEventListener("change", async (e) => {
+  nt.getElementById("notif-toggle-due").addEventListener("change", async (e) => {
     if (e.target.checked) {
       const perm = await requestDueNotifPermission();
       refreshNotifPermissionStatus();
@@ -2854,7 +3023,6 @@ function wireNotifControls() {
   document.getElementById("notif-lead").addEventListener("change", (e) => {
     state.notifsLeadMinutes = parseInt(e.target.value, 10) || 15;
     saveState();
-    // Reinicia el engine para que el nuevo lead aplique de inmediato
     if (state.notifsEnabled) startNotifEngine();
   });
 
@@ -2864,7 +3032,7 @@ function wireNotifControls() {
   });
 
   document.getElementById("notif-test").addEventListener("click", async () => {
-    const permit = await requestDueNotifPermission();
+    const perm = await requestDueNotifPermission();
     refreshNotifPermissionStatus();
     if (perm === "unsupported") {
       toast("Tu navegador no soporta notificaciones");
@@ -2875,7 +3043,6 @@ function wireNotifControls() {
       return;
     }
     if (perm !== "granted") {
-      // Quedó en "default" (cerraste el popup sin decidir)
       toast("Acepta el aviso del navegador y vuelve a tocar Probar");
       return;
     }
@@ -2894,13 +3061,12 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// Install prompt
 let deferredInstallPrompt = null;
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
   setTimeout(() => {
-    if (document.getElementById("auth-screen").style.display !== "none") return; // don't show on auth screen
+    if (document.getElementById("auth-screen").style.display !== "none") return;
     const hint = document.createElement("div");
     hint.id = "install-hint";
     hint.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:12px 18px;border-radius:999px;font-size:13px;box-shadow:var(--shadow);z-index:1100;display:flex;gap:10px;align-items:center;";
@@ -2925,7 +3091,6 @@ window.addEventListener("beforeinstallprompt", (e) => {
 /* ---------------- Bootstrap ---------------- */
 async function bootstrap() {
   if (!sb) {
-    // No Supabase available — fall back to local-only mode
     showMainApp();
     document.getElementById("logout-btn").style.display = "none";
     document.getElementById("user-email").textContent = "modo local";
@@ -2935,18 +3100,18 @@ async function bootstrap() {
     checkAchievements();
     return;
   }
-
-  // Check existing session
+  // Sincroniza el checkbox "Recordarme" con la preferencia guardada
+  try {
+    const cb = document.getElementById("auth-remember");
+    if (cb) cb.checked = getRememberPref();
+  } catch(e) {}
   const { data: { session } } = await sb.auth.getSession();
   if (session && session.user) {
     currentUser = session.user;
     showMainApp();
     setSyncStatus("syncing", "Cargando…");
     const ok = await pullFromCloud();
-    if (!ok) {
-      // Couldn't pull (offline?). Use local cache.
-      setSyncStatus("offline");
-    }
+    if (!ok) setSyncStatus("offline");
     updateStreak();
     renderAll();
     checkAchievements();

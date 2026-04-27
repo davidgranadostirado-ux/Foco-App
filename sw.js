@@ -1,7 +1,7 @@
 // Service Worker para Foco PWA
 // Estrategia: cache-first para los assets core, network-first para el HTML (para recibir actualizaciones)
 
-const CACHE_VERSION = "foco-v1.2.0";
+const CACHE_VERSION = "foco-v1.3.0";
 const CORE_ASSETS = [
   "./",
   "./index.html",
