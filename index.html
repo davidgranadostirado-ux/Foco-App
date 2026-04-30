@@ -3333,7 +3333,11 @@ function wireNotifControls() {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js")
-      .then((reg) => console.log("SW registrado:", reg.scope))
+      .then((reg) => {
+        console.log("SW registrado:", reg.scope);
+        // Forzar chequeo de actualización en cada carga de página
+        reg.update();
+      })
       .catch((err) => console.warn("SW no registrado:", err));
 
     // Cuando el SW se actualiza y toma control, recargar para obtener código fresco

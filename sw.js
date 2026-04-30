@@ -1,33 +1,38 @@
-// Service Worker para Foco PWA
-// Estrategia: network-first con cache: 'no-cache' para HTML (siempre código fresco),
-//             cache-first para assets estáticos (iconos, manifest).
+// Service Worker para Foco PWA — v1.6.0
+//
+// Estrategia:
+//   - HTML (navegación): NUNCA se intercepta. El navegador lo pide directo a la red.
+//     Esto evita que F5 sirva código viejo cacheado. GitHub Pages siempre da el JS más nuevo.
+//   - Assets estáticos (iconos, manifest): cache-first con respaldo de red.
+//   - Notificaciones push: manejadas aquí.
 
 const CACHE_VERSION = "foco-v1.6.0";
-const CORE_ASSETS = [
-  "./",
-  "./index.html",
+const STATIC_ASSETS = [
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable.png"
 ];
 
+// ── Install: solo cachear assets estáticos (NO el HTML) ──────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    // Precachear assets estáticos (NO el HTML — lo fetcharemos siempre fresco)
     caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(["./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-maskable.png"]))
+      .then((cache) => cache.addAll(STATIC_ASSETS))
       .then(() => self.skipWaiting())
   );
 });
 
+// ── Activate: limpiar cachés viejos y tomar control ──────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      )
       .then(() => self.clients.claim())
       .then(() => {
-        // Avisar a todos los clientes que el SW se actualizó — ellos recargarán
+        // Avisar a todos los clientes que el SW se actualizó → la página recargará
         return self.clients.matchAll({ type: "window" }).then((clients) => {
           clients.forEach((client) => client.postMessage({ type: "SW_UPDATED" }));
         });
@@ -35,40 +40,28 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ── Fetch: NO interceptar HTML; cache-first para assets estáticos ─────────────
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
 
-  const isHTML = req.mode === "navigate" || req.destination === "document";
+  // Navegación (HTML): dejar que el navegador lo maneje directamente
+  // → siempre obtiene el JS más reciente de GitHub Pages sin pasar por caché del SW
+  if (req.mode === "navigate") return;
 
-  if (isHTML) {
-    // Network-first para HTML: siempre pide al servidor ignorando caché HTTP
-    // Esto evita que F5 sirva código viejo del CDN de GitHub Pages
-    event.respondWith(
-      fetch(new Request(req, { cache: "no-cache" }))
-        .then((res) => {
-          // Guardar en caché como respaldo offline
-          const clone = res.clone();
-          caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
-          return res;
-        })
-        .catch(() =>
-          caches.match(req).then((cached) => cached || caches.match("./index.html"))
-        )
-    );
-  } else {
-    // Cache-first para assets estáticos (iconos, manifest)
-    event.respondWith(
-      caches.match(req).then((cached) => cached || fetch(req).then((res) => {
+  // Assets estáticos: cache-first con respaldo de red
+  event.respondWith(
+    caches.match(req).then((cached) =>
+      cached || fetch(req).then((res) => {
         const clone = res.clone();
         caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
         return res;
-      }))
-    );
-  }
+      })
+    )
+  );
 });
 
-/* ---------------- Notificaciones ---------------- */
+// ── Notificaciones ────────────────────────────────────────────────────────────
 
 self.addEventListener("message", (event) => {
   const data = event.data;
@@ -89,13 +82,8 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil((async () => {
     const allClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const client of allClients) {
-      try {
-        await client.focus();
-        return;
-      } catch(e) { /* sigue probando */ }
+      try { await client.focus(); return; } catch(e) { /* sigue */ }
     }
-    if (self.clients.openWindow) {
-      await self.clients.openWindow("./");
-    }
+    if (self.clients.openWindow) await self.clients.openWindow("./");
   })());
 });
