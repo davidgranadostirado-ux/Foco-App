@@ -1357,6 +1357,7 @@ function initSupabase(remember) {
 initSupabase(getRememberPref());
 
 let currentUser = null;
+let bootstrapInProgress = false; // evita que onAuthStateChange pise bootstrap
 
 /* ---------------- State ---------------- */
 const STORAGE_KEY = "foco_tdah_state_v1";
@@ -1883,9 +1884,14 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 if (sb) {
   sb.auth.onAuthStateChange((event, session) => {
     if (event === "SIGNED_IN" && session && (!currentUser || currentUser.id !== session.user.id)) {
+      // Si bootstrap está corriendo, él ya se encarga de push+pull. No interferir.
+      if (bootstrapInProgress) return;
       currentUser = session.user;
-      // pull and show app
-      pullFromCloud().then(() => onAuthSuccess());
+      // Para magic links y reautenticaciones: push primero para no perder cambios locales
+      pushToCloud()
+        .catch(e => console.warn("auth-change push:", e))
+        .then(() => pullFromCloud())
+        .then(() => onAuthSuccess());
     } else if (event === "SIGNED_OUT") {
       // already handled by logout button; this is a safety net
     }
@@ -3259,7 +3265,7 @@ function wireNotifControls() {
   // Engranaje → ajustes
   gear.addEventListener("click", openSettingsModal);
   document.getElementById("settings-modal-close").addEventListener("click", closeSettingsModal);
-  nt.getElementById("notif-toggle-due").addEventListener("change", async (e) => {
+  document.getElementById("notif-toggle-due").addEventListener("change", async (e) => {
     if (e.target.checked) {
       const perm = await requestDueNotifPermission();
       refreshNotifPermissionStatus();
@@ -3361,35 +3367,41 @@ window.addEventListener("beforeinstallprompt", (e) => {
 
 /* ---------------- Bootstrap ---------------- */
 async function bootstrap() {
-  if (!sb) {
-    showMainApp();
-    document.getElementById("logout-btn").style.display = "none";
-    document.getElementById("user-email").textContent = "modo local";
-    setSyncStatus("offline", "Sin servidor");
-    updateStreak();
-    renderAll();
-    checkAchievements();
-    return;
-  }
-  // Sincroniza el checkbox "Recordarme" con la preferencia guardada
+  bootstrapInProgress = true;
   try {
-    const cb = document.getElementById("auth-remember");
-    if (cb) cb.checked = getRememberPref();
-  } catch(e) {}
-  const { data: { session } } = await sb.auth.getSession();
-  if (session && session.user) {
-    currentUser = session.user;
-    showMainApp();
-    setSyncStatus("syncing", "Cargando…");
-    try { await pushToCloud(); } catch(e) { console.warn("push inicial falló:", e); }
-    const ok = await pullFromCloud();
-    if (!ok) setSyncStatus("offline");
-    updateStreak();
-    renderAll();
-    checkAchievements();
-  } else {
-    showAuthScreen();
-    setSyncStatus("offline", "Sin sesión");
+    if (!sb) {
+      showMainApp();
+      document.getElementById("logout-btn").style.display = "none";
+      document.getElementById("user-email").textContent = "modo local";
+      setSyncStatus("offline", "Sin servidor");
+      updateStreak();
+      renderAll();
+      checkAchievements();
+      return;
+    }
+    // Sincroniza el checkbox "Recordarme" con la preferencia guardada
+    try {
+      const cb = document.getElementById("auth-remember");
+      if (cb) cb.checked = getRememberPref();
+    } catch(e) {}
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && session.user) {
+      currentUser = session.user;
+      showMainApp();
+      setSyncStatus("syncing", "Cargando…");
+      // Push primero para que ediciones/borrados locales lleguen antes del pull
+      try { await pushToCloud(); } catch(e) { console.warn("push inicial falló:", e); }
+      const ok = await pullFromCloud();
+      if (!ok) setSyncStatus("offline");
+      updateStreak();
+      renderAll();
+      checkAchievements();
+    } else {
+      showAuthScreen();
+      setSyncStatus("offline", "Sin sesión");
+    }
+  } finally {
+    bootstrapInProgress = false;
   }
 }
 
