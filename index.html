@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-192.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
-<meta name="description" content="Un espacio calmado para organizar tareas y vencer la procrastinación cuando vives con TDAH." />
+<meta name="description" content="Un espacio calmado para organizar tareas y vivir con foco. Hecho para todos." />
 
 <!-- Supabase JS SDK (Auth + Database client) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -140,6 +140,46 @@
     border-radius: var(--radius); padding: 16px;
     box-shadow: var(--shadow); margin-bottom: 20px;
   }
+  /* Edición de tarea */
+  .edit-field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+  .edit-field label {
+    font-size: 11px; text-transform: uppercase; color: var(--ink-muted);
+    letter-spacing: 0.6px;
+  }
+  .edit-field input[type="text"],
+  .edit-field input[type="date"],
+  .edit-field select {
+    border: 1px solid var(--line); background: var(--surface-2);
+    border-radius: var(--radius-sm); padding: 10px 12px; outline: none;
+    font-family: inherit; font-size: 14px; color: var(--ink);
+    transition: border .15s;
+  }
+  .edit-field input:focus, .edit-field select:focus { border-color: var(--accent); }
+  .edit-field-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .edit-field-row .edit-field { flex: 1 1 160px; }
+
+  /* Menú popover (3 puntos) */
+  .task-menu {
+    position: absolute; top: 100%; right: 0;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: 0 10px 30px -8px rgba(0,0,0,.18);
+    padding: 6px; min-width: 180px; z-index: 50;
+    display: flex; flex-direction: column; gap: 2px;
+    margin-top: 6px;
+  }
+  .task-menu button {
+    display: flex; align-items: center; gap: 10px;
+    background: transparent; border: 0; border-radius: 8px;
+    padding: 8px 10px; font-size: 13px; color: var(--ink);
+    cursor: pointer; text-align: left; width: 100%;
+    transition: background 0.12s;
+  }
+  .task-menu button:hover { background: var(--surface-2); }
+  .task-menu button.danger { color: var(--danger); }
+  .task-menu button.danger:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+  .task-menu .menu-emoji { font-size: 14px; line-height: 1; }
+  .task-actions { position: relative; }
+
   /* Categorías */
   .cat-row {
     display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
@@ -966,6 +1006,63 @@
   </div>
 
   <!-- Modal de ajustes (engranaje ⚙️) -->
+  <!-- Modal de edición de tarea -->
+  <div id="edit-task-modal" class="notif-modal" style="display:none;" role="dialog" aria-labelledby="edit-task-title">
+    <div class="notif-modal-backdrop" id="edit-task-backdrop"></div>
+    <div class="notif-modal-card">
+      <div class="notif-modal-header">
+        <h3 id="edit-task-title">Modificar tarea ✏️</h3>
+        <button class="btn btn-ghost" id="edit-task-close" style="padding:4px 10px; font-size:12px;">Cerrar</button>
+      </div>
+      <div class="edit-field">
+        <label for="edit-task-input">Título</label>
+        <input type="text" id="edit-task-input" maxlength="200" />
+      </div>
+      <div class="edit-field-row">
+        <div class="edit-field">
+          <label for="edit-task-quadrant">Prioridad</label>
+          <select id="edit-task-quadrant">
+            <option value="q2">🟢 Importante · no urgente</option>
+            <option value="q1">🔴 Urgente · importante</option>
+            <option value="q3">🟠 Urgente · no importante</option>
+            <option value="q4">🔵 Ni urgente ni importante</option>
+          </select>
+        </div>
+        <div class="edit-field">
+          <label for="edit-task-time">Tiempo estimado</label>
+          <select id="edit-task-time">
+            <option value="0">Sin estimar</option>
+            <option value="5">5 min</option>
+            <option value="15">15 min</option>
+            <option value="25">25 min</option>
+            <option value="45">45 min</option>
+            <option value="90">90 min</option>
+          </select>
+        </div>
+      </div>
+      <div class="edit-field-row">
+        <div class="edit-field">
+          <label for="edit-task-date">Fecha</label>
+          <input type="date" id="edit-task-date" />
+        </div>
+        <div class="edit-field">
+          <label for="edit-task-time-of-day">Hora</label>
+          <select id="edit-task-time-of-day">
+            <option value="">🕒 Sin hora</option>
+          </select>
+        </div>
+      </div>
+      <div class="edit-field">
+        <label>Bloque</label>
+        <div class="cat-row" id="edit-cat-row" style="margin-top:4px;"></div>
+      </div>
+      <div class="notif-actions" style="margin-top:14px;">
+        <button class="btn btn-ghost" id="edit-task-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="edit-task-save" style="margin-left:auto;">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
   <div id="settings-modal" class="notif-modal" style="display:none;" role="dialog" aria-labelledby="settings-modal-title">
     <div class="notif-modal-backdrop" id="settings-modal-backdrop"></div>
     <div class="notif-modal-card">
@@ -1149,7 +1246,7 @@
     </div>
 
     <div style="margin-top:24px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: var(--radius); padding: 16px; color: var(--ink-soft); font-size: 13px;">
-      <strong style="color: var(--ink);">Cómo usar Pomodoro con TDAH:</strong>
+      <strong style="color: var(--ink);">Cómo usar Pomodoro:</strong>
       <ul style="margin: 8px 0 0; padding-left: 18px;">
         <li>Elige <em>una sola</em> tarea. Si es grande, desglósala primero.</li>
         <li>Usa el <strong>modo zen</strong> para ocultar todo lo demás.</li>
@@ -1224,7 +1321,7 @@
 
 <script>
 /* ============================================================
-   FOCO · TDAH organizer with Supabase auth + sync
+   FOCO · A calm focus space with Supabase auth + sync
    ============================================================ */
 
 /* ---------------- Supabase config ---------------- */
@@ -1500,19 +1597,23 @@ async function pullFromCloud() {
     if (journalRes.error) throw journalRes.error;
     if (statsRes.error) throw statsRes.error;
 
-    state.tasks = (tasksRes.data || []).map(t => ({
-      id: t.id,
-      title: t.title,
-      quadrant: (t.quadrant || "q2").toLowerCase(),
-      estimatedMin: t.estimated_min || 0,
-      done: !!t.done,
-      doneAt: t.done_at ? new Date(t.done_at).getTime() : null,
-      createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
-      dueDate: t.due_date || null,
-      dueTime: t.due_time || null,
-      subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
-      expanded: false,
-    }));
+    // Filtra cualquier tarea que el usuario haya borrado localmente y aún no se sincronizó
+    const pendingDeletes = new Set(state.deletedTaskIds || []);
+    state.tasks = (tasksRes.data || [])
+      .filter(t => !pendingDeletes.has(t.id))
+      .map(t => ({
+        id: t.id,
+        title: t.title,
+        quadrant: (t.quadrant || "q2").toLowerCase(),
+        estimatedMin: t.estimated_min || 0,
+        done: !!t.done,
+        doneAt: t.done_at ? new Date(t.done_at).getTime() : null,
+        createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
+        dueDate: t.due_date || null,
+        dueTime: t.due_time || null,
+        subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+        expanded: false,
+      }));
 
     state.journal = {};
     (journalRes.data || []).forEach(e => {
@@ -1533,7 +1634,7 @@ async function pullFromCloud() {
       state.achievements = statsRes.data.achievements || {};
     }
 
-    state.deletedTaskIds = [];
+    // No limpiamos state.deletedTaskIds aquí — solo se limpia tras un push exitoso
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     setSyncStatus("synced");
     return true;
@@ -1574,6 +1675,8 @@ function showMainApp() {
   } catch(e) { console.warn("notifs init failed:", e); }
   // Poblar opciones del selector de hora (cada 15 min)
   try { populateTimeOptions(); } catch(e) { console.warn("time options failed:", e); }
+  // Enganchar modal de edición de tarea
+  try { wireEditTaskModal(); } catch(e) { console.warn("edit modal init failed:", e); }
 }
 
 /* ---------------- Selector de hora cada 15 min ---------------- */
@@ -1847,6 +1950,11 @@ function deleteTask(id) {
   renderTasks();
   renderStats();
   renderFocusTask();
+  // Disparamos push inmediato (saltando el debounce) para que el delete se confirme YA en el servidor
+  if (currentUser && sb) {
+    clearTimeout(syncTimeout);
+    pushToCloud();
+  }
 }
 
 function toggleExpand(id) {
@@ -2219,8 +2327,7 @@ function renderTask(t) {
       </div>
       <div class="task-actions">
         <button class="icon-btn ${isFocused?'active':''}" data-action="focus" title="Enfocarse en esta tarea">◎</button>
-        <button class="icon-btn" data-action="expand" title="Desglosar en pasos">⋯</button>
-        <button class="icon-btn" data-action="delete" title="Eliminar">✕</button>
+        <button class="icon-btn" data-action="open-menu" title="Más opciones">⋯</button>
       </div>
     </div>
     <div class="subtasks">
@@ -2246,6 +2353,8 @@ function renderTask(t) {
     }
     else if (action === "expand") toggleExpand(t.id);
     else if (action === "focus") setFocusTask(t.id);
+    else if (action === "edit") openEditTaskModal(t.id);
+    else if (action === "open-menu") openTaskMenu(e.target, t.id);
     else if (action === "toggle-sub") toggleSubtask(t.id, e.target.dataset.sub);
     else if (action === "add-sub") {
       const inp = el.querySelector(`[data-sub-input="${t.id}"]`);
@@ -2266,6 +2375,132 @@ function renderTask(t) {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]));
+}
+
+/* ---------------- Menú popover de tarea (3 puntos) ---------------- */
+let openMenuEl = null;
+function closeTaskMenu() {
+  if (openMenuEl) { openMenuEl.remove(); openMenuEl = null; }
+}
+function openTaskMenu(triggerBtn, taskId) {
+  closeTaskMenu();
+  const t = state.tasks.find(x => x.id === taskId);
+  if (!t) return;
+  const menu = document.createElement("div");
+  menu.className = "task-menu";
+  menu.innerHTML = `
+    <button data-menu-action="edit"><span class="menu-emoji">✏️</span>Modificar tarea</button>
+    <button data-menu-action="expand"><span class="menu-emoji">📋</span>${t.expanded ? 'Ocultar pasos' : 'Desglosar en pasos'}</button>
+    <button data-menu-action="delete" class="danger"><span class="menu-emoji">🗑️</span>Eliminar</button>
+  `;
+  triggerBtn.parentElement.appendChild(menu);
+  openMenuEl = menu;
+  menu.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const a = e.target.closest("[data-menu-action]");
+    if (!a) return;
+    const action = a.dataset.menuAction;
+    closeTaskMenu();
+    if (action === "edit") openEditTaskModal(taskId);
+    else if (action === "expand") toggleExpand(taskId);
+    else if (action === "delete") { if (confirm("¿Eliminar esta tarea?")) deleteTask(taskId); }
+  });
+}
+document.addEventListener("click", (e) => {
+  if (!openMenuEl) return;
+  if (e.target.closest(".task-menu")) return;
+  if (e.target.dataset && e.target.dataset.action === "open-menu") return;
+  closeTaskMenu();
+});
+
+/* ---------------- Modal de edición de tarea ---------------- */
+let editingTaskId = null;
+function openEditTaskModal(id) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  editingTaskId = id;
+  document.getElementById("edit-task-input").value = t.title || "";
+  document.getElementById("edit-task-quadrant").value = t.quadrant || "q2";
+  document.getElementById("edit-task-time").value = String(t.estimatedMin || 0);
+  document.getElementById("edit-task-date").value = t.dueDate || "";
+  // Poblar select de hora si está vacío
+  const timeSel = document.getElementById("edit-task-time-of-day");
+  if (timeSel.options.length <= 1) {
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        const value = String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
+        const opt = document.createElement("option");
+        opt.value = value; opt.textContent = format12h(h, m);
+        timeSel.appendChild(opt);
+      }
+    }
+  }
+  timeSel.value = t.dueTime || "";
+  // Pills de categoría dentro del modal
+  renderEditCategoryPills(t.categoryId || null);
+  document.getElementById("edit-task-modal").style.display = "flex";
+}
+function closeEditTaskModal() {
+  document.getElementById("edit-task-modal").style.display = "none";
+  editingTaskId = null;
+}
+function renderEditCategoryPills(selectedId) {
+  const row = document.getElementById("edit-cat-row");
+  if (!row) return;
+  row.innerHTML = "";
+  // Pill "Sin bloque"
+  const none = document.createElement("button");
+  none.type = "button";
+  none.className = "cat-pill" + (!selectedId ? " active" : "");
+  none.style.setProperty("--cat-color", "var(--ink-muted)");
+  none.textContent = "Sin bloque";
+  none.dataset.editCat = "";
+  row.appendChild(none);
+  (state.categories || []).forEach(c => {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = "cat-pill" + (selectedId === c.id ? " active" : "");
+    pill.style.setProperty("--cat-color", c.color);
+    pill.dataset.editCat = c.id;
+    pill.innerHTML = `<span class="cat-emoji">${c.emoji}</span>${escapeHtml(c.name)}`;
+    row.appendChild(pill);
+  });
+  row.querySelectorAll(".cat-pill").forEach(p => {
+    p.addEventListener("click", () => {
+      renderEditCategoryPills(p.dataset.editCat || null);
+    });
+  });
+}
+function saveEditedTask() {
+  if (!editingTaskId) return;
+  const t = state.tasks.find(x => x.id === editingTaskId);
+  if (!t) return;
+  const newTitle = document.getElementById("edit-task-input").value.trim();
+  if (!newTitle) { toast("El título no puede quedar vacío"); return; }
+  t.title = newTitle;
+  t.quadrant = document.getElementById("edit-task-quadrant").value || "q2";
+  t.estimatedMin = parseInt(document.getElementById("edit-task-time").value, 10) || 0;
+  t.dueDate = document.getElementById("edit-task-date").value || null;
+  t.dueTime = document.getElementById("edit-task-time-of-day").value || null;
+  // Categoría seleccionada
+  const activeCat = document.querySelector("#edit-cat-row .cat-pill.active");
+  t.categoryId = (activeCat && activeCat.dataset.editCat) ? activeCat.dataset.editCat : null;
+  saveState();
+  renderTasks();
+  renderStats();
+  renderFocusTask();
+  closeEditTaskModal();
+  toast("Tarea actualizada ✨");
+}
+// Wire una sola vez (cuando carga la pantalla principal)
+function wireEditTaskModal() {
+  const closeBtn = document.getElementById("edit-task-close");
+  if (!closeBtn || closeBtn.dataset.wired) return;
+  closeBtn.addEventListener("click", closeEditTaskModal);
+  document.getElementById("edit-task-backdrop").addEventListener("click", closeEditTaskModal);
+  document.getElementById("edit-task-cancel").addEventListener("click", closeEditTaskModal);
+  document.getElementById("edit-task-save").addEventListener("click", saveEditedTask);
+  closeBtn.dataset.wired = "1";
 }
 
 /* ---------------- Matrix ---------------- */
@@ -3110,6 +3345,10 @@ async function bootstrap() {
     currentUser = session.user;
     showMainApp();
     setSyncStatus("syncing", "Cargando…");
+    // Primero subir cambios pendientes (especialmente borrados) para que no reaparezcan al hacer pull
+    if ((state.deletedTaskIds || []).length > 0) {
+      try { await pushToCloud(); } catch(e) { console.warn("push pendiente falló:", e); }
+    }
     const ok = await pullFromCloud();
     if (!ok) setSyncStatus("offline");
     updateStreak();
