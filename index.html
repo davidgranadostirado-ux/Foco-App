@@ -1599,21 +1599,28 @@ async function pullFromCloud() {
 
     // Filtra cualquier tarea que el usuario haya borrado localmente y aún no se sincronizó
     const pendingDeletes = new Set(state.deletedTaskIds || []);
+    // Mapa de tareas locales para preservar campos que no están en Supabase (ej: categoryId)
+    const localTaskMap = new Map((state.tasks || []).map(t => [t.id, t]));
     state.tasks = (tasksRes.data || [])
       .filter(t => !pendingDeletes.has(t.id))
-      .map(t => ({
-        id: t.id,
-        title: t.title,
-        quadrant: (t.quadrant || "q2").toLowerCase(),
-        estimatedMin: t.estimated_min || 0,
-        done: !!t.done,
-        doneAt: t.done_at ? new Date(t.done_at).getTime() : null,
-        createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
-        dueDate: t.due_date || null,
-        dueTime: t.due_time || null,
-        subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
-        expanded: false,
-      }));
+      .map(t => {
+        const local = localTaskMap.get(t.id);
+        return {
+          id: t.id,
+          title: t.title,
+          quadrant: (t.quadrant || "q2").toLowerCase(),
+          estimatedMin: t.estimated_min || 0,
+          done: !!t.done,
+          doneAt: t.done_at ? new Date(t.done_at).getTime() : null,
+          createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
+          dueDate: t.due_date || null,
+          dueTime: t.due_time || null,
+          subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+          expanded: false,
+          // Preservar categoryId del estado local (no está en el schema de Supabase aún)
+          categoryId: local ? (local.categoryId || null) : null,
+        };
+      });
 
     state.journal = {};
     (journalRes.data || []).forEach(e => {
@@ -2486,6 +2493,11 @@ function saveEditedTask() {
   const activeCat = document.querySelector("#edit-cat-row .cat-pill.active");
   t.categoryId = (activeCat && activeCat.dataset.editCat) ? activeCat.dataset.editCat : null;
   saveState();
+  // Push inmediato (sin esperar el debounce de 800ms) — igual que deleteTask
+  if (currentUser && sb) {
+    clearTimeout(syncTimeout);
+    pushToCloud();
+  }
   renderTasks();
   renderStats();
   renderFocusTask();
@@ -3345,10 +3357,10 @@ async function bootstrap() {
     currentUser = session.user;
     showMainApp();
     setSyncStatus("syncing", "Cargando…");
-    // Primero subir cambios pendientes (especialmente borrados) para que no reaparezcan al hacer pull
-    if ((state.deletedTaskIds || []).length > 0) {
-      try { await pushToCloud(); } catch(e) { console.warn("push pendiente falló:", e); }
-    }
+    // SIEMPRE subir estado local antes de pull — as�� ediciones, borrados y cambios que no llegaron
+    // a sincronizarse (ej: el usuario hizo F5 antes de que pasaran los 800ms del debounce)
+    // llegan al servidor antes de que el pull los sobreescriba.
+    try { await pushToCloud(); } catch(e) { console.warn("push inicial falló:", e); }
     const ok = await pullFromCloud();
     if (!ok) setSyncStatus("offline");
     updateStreak();
