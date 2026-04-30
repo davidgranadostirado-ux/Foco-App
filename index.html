@@ -3335,15 +3335,15 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js")
       .then((reg) => {
         console.log("SW registrado:", reg.scope);
-        // Forzar chequeo de actualización en cada carga de página
-        reg.update();
+        reg.update(); // Chequear actualización en cada carga
       })
       .catch((err) => console.warn("SW no registrado:", err));
 
-    // Cuando el SW se actualiza y toma control, recargar para obtener código fresco
-    // Esto garantiza que F5 siempre ejecute la versión más nueva del JS
-    navigator.serviceWorker.addEventListener("message", (event) => {
-      if (event.data && event.data.type === "SW_UPDATED" && !window._swReloading) {
+    // Cuando el nuevo SW toma control, recargar la página automáticamente.
+    // 'controllerchange' es un evento nativo del navegador — no depende del SW.
+    // Funciona incluso si el HTML que se está ejecutando es una versión vieja.
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!window._swReloading) {
         window._swReloading = true;
         window.location.reload();
       }

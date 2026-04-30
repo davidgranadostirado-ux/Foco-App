@@ -1,10 +1,10 @@
 // Service Worker para Foco PWA — v1.6.0
 //
 // Estrategia:
-//   - HTML (navegación): NUNCA se intercepta. El navegador lo pide directo a la red.
-//     Esto evita que F5 sirva código viejo cacheado. GitHub Pages siempre da el JS más nuevo.
-//   - Assets estáticos (iconos, manifest): cache-first con respaldo de red.
-//   - Notificaciones push: manejadas aquí.
+//   - HTML: NO se intercepta. Siempre va directo a la red.
+//   - Assets estáticos (iconos, manifest): cache-first.
+//   - Al activarse SW nuevo: envía postMessage SW_UPDATED.
+//     La página escucha 'controllerchange' y recarga automáticamente.
 
 const CACHE_VERSION = "foco-v1.6.0";
 const STATIC_ASSETS = [
@@ -14,7 +14,6 @@ const STATIC_ASSETS = [
   "./icon-maskable.png"
 ];
 
-// ── Install: solo cachear assets estáticos (NO el HTML) ──────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
@@ -23,7 +22,6 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// ── Activate: limpiar cachés viejos y tomar control ──────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
@@ -31,25 +29,20 @@ self.addEventListener("activate", (event) => {
         Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
       )
       .then(() => self.clients.claim())
-      .then(() => {
-        // Avisar a todos los clientes que el SW se actualizó → la página recargará
-        return self.clients.matchAll({ type: "window" }).then((clients) => {
-          clients.forEach((client) => client.postMessage({ type: "SW_UPDATED" }));
-        });
-      })
+      // No llamamos client.navigate() aquí (causa errores de canal cerrado).
+      // La página detecta el cambio de controller con el evento 'controllerchange'
+      // y recarga sola. Ver registro en index.html.
   );
 });
 
-// ── Fetch: NO interceptar HTML; cache-first para assets estáticos ─────────────
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
 
-  // Navegación (HTML): dejar que el navegador lo maneje directamente
-  // → siempre obtiene el JS más reciente de GitHub Pages sin pasar por caché del SW
+  // NO interceptar navegación HTML
   if (req.mode === "navigate") return;
 
-  // Assets estáticos: cache-first con respaldo de red
+  // Cache-first para assets estáticos
   event.respondWith(
     caches.match(req).then((cached) =>
       cached || fetch(req).then((res) => {
@@ -61,28 +54,29 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// ── Notificaciones ────────────────────────────────────────────────────────────
+/* ── Notificaciones ────────────────────────────────────────────────────────── */
 
 self.addEventListener("message", (event) => {
   const data = event.data;
   if (!data || data.type !== "show-notification") return;
-  const opts = {
-    body: data.body || "",
-    tag: data.tag || ("foco-" + Date.now()),
-    icon: "icon-192.png",
-    badge: "icon-192.png",
-    data: data.data || {},
-    silent: false,
-  };
-  event.waitUntil(self.registration.showNotification(data.title || "Foco", opts));
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Foco", {
+      body: data.body || "",
+      tag: data.tag || ("foco-" + Date.now()),
+      icon: "icon-192.png",
+      badge: "icon-192.png",
+      data: data.data || {},
+      silent: false,
+    })
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil((async () => {
-    const allClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    for (const client of allClients) {
-      try { await client.focus(); return; } catch(e) { /* sigue */ }
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of all) {
+      try { await client.focus(); return; } catch(e) {}
     }
     if (self.clients.openWindow) await self.clients.openWindow("./");
   })());
