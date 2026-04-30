@@ -1533,12 +1533,19 @@ async function pushToCloud() {
       if (tErr) throw tErr;
     }
 
-    // 2. Process queued deletions
+    // 2. Procesar cola de borrados pendientes (respaldo para F5 mid-request)
     if (state.deletedTaskIds && state.deletedTaskIds.length > 0) {
       const validDeletes = state.deletedTaskIds.filter(isUuid);
       if (validDeletes.length > 0) {
-        const { error: dErr } = await sb.from("tasks").delete().in("id", validDeletes);
-        if (dErr) throw dErr;
+        // Filtro explícito por user_id además del RLS
+        const { error: dErr } = await sb.from("tasks")
+          .delete()
+          .eq("user_id", currentUser.id)
+          .in("id", validDeletes);
+        if (dErr) {
+          console.error("Queue delete error:", dErr);
+          throw dErr;
+        }
       }
       state.deletedTaskIds = [];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -1575,10 +1582,14 @@ async function pushToCloud() {
 
     setSyncStatus("synced");
   } catch (e) {
-    console.warn("Cloud sync error:", e);
-    if (!navigator.onLine) setSyncStatus("offline");
-    else setSyncStatus("error", "Reintento en breve");
-    // Retry after 5s
+    console.error("Cloud sync error:", e);
+    const msg = e?.message || e?.code || JSON.stringify(e) || "error desconocido";
+    if (!navigator.onLine) {
+      setSyncStatus("offline");
+    } else {
+      setSyncStatus("error", "Reintento en breve");
+      console.error("Sync failed — detalle:", msg);
+    }
     setTimeout(scheduleCloudSync, 5000);
   }
 }
@@ -1948,7 +1959,7 @@ function toggleTask(id) {
 function deleteTask(id) {
   state.tasks = state.tasks.filter(x => x.id !== id);
   if (state.focusTaskId === id) state.focusTaskId = null;
-  // Track deletion for cloud sync (only if it was a real saved task)
+  // Cola de respaldo para el caso de F5 antes de que el request termine
   if (isUuid(id)) {
     state.deletedTaskIds = state.deletedTaskIds || [];
     if (!state.deletedTaskIds.includes(id)) state.deletedTaskIds.push(id);
@@ -1957,10 +1968,23 @@ function deleteTask(id) {
   renderTasks();
   renderStats();
   renderFocusTask();
-  // Disparamos push inmediato (saltando el debounce) para que el delete se confirme YA en el servidor
-  if (currentUser && sb) {
-    clearTimeout(syncTimeout);
-    pushToCloud();
+  // Delete DIRECTO en Supabase con filtro explícito de user_id — sin pasar por el queue de pushToCloud
+  if (currentUser && sb && isUuid(id)) {
+    sb.from("tasks")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", currentUser.id)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Supabase delete error:", error);
+          toast("⚠️ Error al eliminar en servidor · " + (error.message || error.code || ""));
+        } else {
+          // Éxito: sacar de la cola de respaldo
+          state.deletedTaskIds = (state.deletedTaskIds || []).filter(x => x !== id);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          setSyncStatus("synced");
+        }
+      });
   }
 }
 
@@ -3357,9 +3381,6 @@ async function bootstrap() {
     currentUser = session.user;
     showMainApp();
     setSyncStatus("syncing", "Cargando…");
-    // SIEMPRE subir estado local antes de pull — as�� ediciones, borrados y cambios que no llegaron
-    // a sincronizarse (ej: el usuario hizo F5 antes de que pasaran los 800ms del debounce)
-    // llegan al servidor antes de que el pull los sobreescriba.
     try { await pushToCloud(); } catch(e) { console.warn("push inicial falló:", e); }
     const ok = await pullFromCloud();
     if (!ok) setSyncStatus("offline");
