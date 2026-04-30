@@ -3335,6 +3335,15 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js")
       .then((reg) => console.log("SW registrado:", reg.scope))
       .catch((err) => console.warn("SW no registrado:", err));
+
+    // Cuando el SW se actualiza y toma control, recargar para obtener código fresco
+    // Esto garantiza que F5 siempre ejecute la versión más nueva del JS
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "SW_UPDATED" && !window._swReloading) {
+        window._swReloading = true;
+        window.location.reload();
+      }
+    });
   });
 }
 
